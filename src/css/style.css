@@ -72,7 +72,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .lang-switch button {
-  border: 0; border-radius: 999px; background: transparent; color: inherit; opacity: 0.65;
+  border: 0; border-radius: 999px; background: transparent; color: inherit; opacity: 0.65; padding: 0; white-space: nowrap;
   font-size: 13px; font-weight: 800; cursor: pointer; transition: background 0.15s, opacity 0.15s;
 }
 .lang-switch button:hover { opacity: 1; }
@@ -147,6 +147,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
   animation: pop 0.25s ease-out;
 }
 .card.wide { width: min(720px, 100%); }
+/* inside an overlay/modal the card must fit below the language-switch clearance,
+   otherwise centering pushes its top (and the close button) underneath the switch */
+.overlay > .card, .modal > .card {
+  max-height: calc(100vh - env(safe-area-inset-top) - 56px - var(--gutter) - env(safe-area-inset-bottom));
+  max-height: calc(100dvh - env(safe-area-inset-top) - 56px - var(--gutter) - env(safe-area-inset-bottom));
+}
 @keyframes pop { from { transform: scale(0.94); opacity: 0; } to { transform: none; opacity: 1; } }
 .card h2 { margin: 0 0 8px; font-size: 22px; }
 .close { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(120, 140, 170, 0.18); }
@@ -205,7 +211,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .lang-switch { height: 36px; }
   .lang-switch button { font-size: 12px; }
   .actions { gap: 4px; }
-  .level-label { font-size: 13px; }
+  /* no room for the level label next to the icons: hide it on mobile (the briefing card shows the level) */
+  .level-label-wrap { display: none; }
+  .actions { margin-left: auto; }
   #topbar { flex-wrap: wrap; }
   .hud { top: auto !important; font-size: 11px; padding: 8px 10px; }
   #hud-left { left: var(--gutter); bottom: calc(env(safe-area-inset-bottom) + 64px); width: calc(50% - var(--gutter) - 4px); }
