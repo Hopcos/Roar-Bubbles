@@ -1,0 +1,31 @@
+# dependencies (none required, but keep the tree clean if tools are added)
+node_modules/
+package-lock.json
+
+# test / coverage output
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+
+# browser profiles created by headless test runs
+.chrome-profile*/
+prof-*/
+
+# logs
+*.log
+npm-debug.log*
+
+# editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# env
+.env
+.env.*
+
+# NOTE: dist/index.html is the shipped single-file deliverable and is intentionally committed.

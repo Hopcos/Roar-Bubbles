@@ -1,0 +1,2957 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <!-- RoarBubbles v1.0.0 | MIT License | single-file build -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#5aa7e0">
+  <meta name="description" content="RoarBubbles - 用声音吹出 3D 泡泡的闯关游戏 / Blow 3D bubbles with your voice">
+  <title>吼吼泡泡 · RoarBubbles</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='30' cy='30' r='24' fill='%23bfe9ff' stroke='%23ff6fa8' stroke-width='4'/%3E%3Ccircle cx='22' cy='22' r='6' fill='white'/%3E%3C/svg%3E">
+  <style>
+/* css/style.css */
+:root {
+  --bg: #0f1a2b;
+  --panel: rgba(255, 255, 255, 0.78);
+  --panel-border: rgba(255, 255, 255, 0.9);
+  --text: #1d2a3a;
+  --muted: #5b6b80;
+  --accent: #ff6fa8;
+  --accent-2: #5fd7ff;
+  --ok: #2bb673;
+  --warn: #ff5a4d;
+  --shadow: 0 8px 30px rgba(10, 30, 60, 0.18);
+  --radius: 14px;
+  --gutter: 16px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --panel: rgba(22, 30, 46, 0.78);
+    --panel-border: rgba(255, 255, 255, 0.12);
+    --text: #e8eef7;
+    --muted: #9fb0c6;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+[hidden] { display: none !important; }
+
+#stage { position: fixed; inset: 0; }
+.scene-canvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+.scene-canvas:active { cursor: grabbing; }
+
+/* ---------- top bar ---------- */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; align-items: center; gap: 12px;
+  padding: calc(env(safe-area-inset-top) + 8px) calc(var(--gutter) + var(--lang-w) + 8px) 8px var(--gutter);
+  pointer-events: none;
+}
+#topbar > * { pointer-events: auto; }
+.brand { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 18px;
+  background: var(--panel); border: 1px solid var(--panel-border); border-radius: 999px; padding: 6px 14px; box-shadow: var(--shadow);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.logo { font-size: 20px; }
+.level-label-wrap { flex: 1; min-width: 0; }
+.level-label { display: inline-block; max-width: 100%; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: var(--panel); border: 1px solid var(--panel-border); border-radius: 999px; padding: 8px 14px; box-shadow: var(--shadow);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.level-label:empty { display: none; }
+.actions { display: flex; gap: 6px; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--panel-border);
+  background: var(--panel); box-shadow: var(--shadow); font-size: 18px; line-height: 1;
+  display: grid; place-items: center; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  transition: transform 0.15s;
+}
+.icon-btn:hover { transform: translateY(-1px) scale(1.05); }
+
+/* ---------- language switch (outermost layer: stays usable above overlays and modals) ---------- */
+:root { --lang-w: 104px; }
+.lang-switch {
+  position: fixed; z-index: 30; top: calc(env(safe-area-inset-top) + 8px); right: var(--gutter);
+  width: var(--lang-w); height: 40px; padding: 3px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+  background: var(--panel); border: 1px solid var(--panel-border); border-radius: 999px; box-shadow: var(--shadow);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.lang-switch button {
+  border: 0; border-radius: 999px; background: transparent; color: inherit; opacity: 0.65;
+  font-size: 13px; font-weight: 800; cursor: pointer; transition: background 0.15s, opacity 0.15s;
+}
+.lang-switch button:hover { opacity: 1; }
+.lang-switch button[aria-pressed="true"] { background: var(--accent); color: #fff; opacity: 1; }
+
+/* ---------- HUD ---------- */
+.panel {
+  background: var(--panel); border: 1px solid var(--panel-border); border-radius: var(--radius);
+  box-shadow: var(--shadow); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.hud { position: fixed; z-index: 4; padding: 10px 12px; font-size: 13px; pointer-events: none; }
+#hud-left { left: var(--gutter); top: calc(env(safe-area-inset-top) + 64px); width: 220px; }
+#hud-right { right: var(--gutter); top: calc(env(safe-area-inset-top) + 64px); width: 250px; }
+.meter { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 8px; margin: 5px 0; }
+.meter label { color: var(--muted); font-weight: 600; }
+.bpm { font-size: 11px; color: var(--muted); min-width: 0; }
+.bar { height: 9px; border-radius: 99px; background: rgba(120, 140, 170, 0.22); overflow: hidden; position: relative; }
+.bar > i { display: block; height: 100%; width: 0; border-radius: inherit; transition: width 0.08s linear; }
+.c-volume { background: linear-gradient(90deg, #5fd7ff, #3a8dff); }
+.c-continuity { background: linear-gradient(90deg, #b07cff, #7a4dff); }
+.c-rhythm { background: linear-gradient(90deg, #6fe39a, #2bb673); }
+.c-stress { background: linear-gradient(90deg, #ffd34d, #ff5a4d); }
+.bar.hold { height: 12px; margin-top: 4px; }
+#hold-bar { background: linear-gradient(90deg, #ffd34d, #2bb673); }
+
+.goal-head { display: flex; justify-content: space-between; font-weight: 800; margin-bottom: 6px; }
+.time { font-variant-numeric: tabular-nums; }
+.time.warn { color: var(--warn); animation: pulse 0.8s infinite; }
+.goal-row { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 3px; gap: 8px; }
+.val { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.chk::before { content: '○ '; color: var(--muted); }
+.chk.ok::before { content: '✔ '; color: var(--ok); }
+.chk.ok { color: var(--ok); font-weight: 700; }
+.size-track { position: relative; height: 14px; border-radius: 99px; background: rgba(120, 140, 170, 0.22); }
+.size-track .band { position: absolute; top: 0; bottom: 0; background: rgba(43, 182, 115, 0.55); border-radius: 4px; }
+.size-track .burst { position: absolute; top: -3px; bottom: -3px; width: 3px; background: var(--warn); border-radius: 2px; }
+.size-track .marker { position: absolute; top: -4px; width: 6px; height: 22px; margin-left: -3px; border-radius: 3px;
+  background: var(--accent); box-shadow: 0 0 0 2px #fff; transition: left 0.08s linear; }
+
+.hint {
+  position: fixed; z-index: 4; left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom) + 18px);
+  max-width: calc(100% - 2 * var(--gutter)); text-align: center;
+  background: var(--panel); border: 1px solid var(--panel-border); box-shadow: var(--shadow);
+  padding: 10px 18px; border-radius: 999px; font-weight: 600; font-size: 14px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.flash {
+  position: fixed; z-index: 6; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(0.6);
+  font-size: 64px; font-weight: 900; color: #fff; opacity: 0; pointer-events: none;
+  text-shadow: 0 4px 24px rgba(255, 111, 168, 0.8);
+}
+.flash.show { animation: flash 1s ease-out; }
+@keyframes flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 25% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); } }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+.fatal { position: fixed; z-index: 20; left: var(--gutter); right: var(--gutter); top: 40%; padding: 16px;
+  background: #fff1f0; color: #a8071a; border-radius: var(--radius); text-align: center; box-shadow: var(--shadow); }
+
+/* ---------- overlays / modals ---------- */
+.overlay, .modal {
+  position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: var(--gutter);
+  background: rgba(10, 20, 40, 0.35); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+}
+.modal { z-index: 12; }
+/* keep cards clear of the always-on-top language switch */
+.overlay, .modal { padding-top: calc(env(safe-area-inset-top) + 56px); }
+.card {
+  position: relative; width: min(440px, 100%); max-height: calc(100vh - 2 * var(--gutter)); overflow: auto;
+  background: var(--panel); border: 1px solid var(--panel-border); border-radius: 20px; box-shadow: var(--shadow);
+  padding: 22px 22px 18px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  animation: pop 0.25s ease-out;
+}
+.card.wide { width: min(720px, 100%); }
+@keyframes pop { from { transform: scale(0.94); opacity: 0; } to { transform: none; opacity: 1; } }
+.card h2 { margin: 0 0 8px; font-size: 22px; }
+.close { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(120, 140, 170, 0.18); }
+.difficulty { color: #f5a623; letter-spacing: 2px; margin-bottom: 8px; }
+.goals { padding-left: 0; list-style: none; margin: 10px 0 18px; line-height: 1.9; }
+.card button:not(.close):not(.level-btn) {
+  border: 1px solid rgba(120, 140, 170, 0.35); background: rgba(255, 255, 255, 0.6); border-radius: 12px; padding: 10px 16px; font-weight: 700;
+}
+@media (prefers-color-scheme: dark) { .card button:not(.close):not(.level-btn) { background: rgba(255, 255, 255, 0.08); } }
+.card button.primary { width: 100%; border: 0 !important; color: #fff; background: linear-gradient(90deg, #ff6fa8, #b07cff) !important; font-size: 17px; padding: 13px 16px !important; box-shadow: 0 6px 18px rgba(255, 111, 168, 0.4); }
+.card button:disabled { opacity: 0.55; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row > button { flex: 1 1 auto; }
+.row > button.primary { width: auto; }
+.countdown { margin-top: 12px; text-align: center; font-weight: 700; color: var(--muted); min-height: 1.2em; }
+.error { margin-top: 10px; color: var(--warn); font-weight: 600; }
+.stars { font-size: 40px; color: #f5a623; letter-spacing: 6px; text-align: center; }
+#overlay-result.win h2 { color: var(--ok); text-align: center; }
+#overlay-result.lose h2 { color: var(--warn); text-align: center; }
+#result-msg { text-align: center; }
+.muted { color: var(--muted); margin-top: 8px; min-height: 1em; }
+
+.guide h3 { margin: 16px 0 6px; font-size: 16px; }
+.guide ul { margin: 0; padding-left: 20px; line-height: 1.7; }
+.guide p { margin: 0; line-height: 1.7; }
+
+.level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin-top: 12px; }
+.level-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
+  padding: 10px; border-radius: 14px; border: 2px solid transparent; color: #1d2a3a;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12); transition: transform 0.12s;
+}
+.level-btn:not(:disabled):hover { transform: translateY(-2px); }
+.level-btn.current { border-color: var(--accent); }
+.level-btn:disabled { filter: grayscale(0.9); opacity: 0.6; cursor: not-allowed; }
+.level-btn .num { font-size: 22px; font-weight: 900; }
+.level-btn .nm { font-size: 12px; font-weight: 600; }
+.level-btn .st { color: #e8920c; font-size: 14px; }
+.level-btn .st i { font-style: normal; opacity: 0.4; }
+.theme-meadow { background: linear-gradient(135deg, #d9f7c8, #9fdc86); }
+.theme-lake { background: linear-gradient(135deg, #d5f0ff, #8fd0f2); }
+.theme-desert { background: linear-gradient(135deg, #fff0cf, #f3c97c); }
+.theme-snow { background: linear-gradient(135deg, #ffffff, #d6e4f2); }
+.theme-volcano { background: linear-gradient(135deg, #ffd0b8, #ff8a5c); }
+
+.setting { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 12px 0 16px; font-weight: 600; }
+.setting input { width: 100%; accent-color: var(--accent); }
+
+/* ---------- small screens ---------- */
+@media (max-width: 720px) {
+  :root { --gutter: 10px; }
+  .brand-name { display: none; }
+  .brand { padding: 6px 10px; }
+  .icon-btn { width: 36px; height: 36px; font-size: 16px; }
+  :root { --lang-w: 88px; }
+  .lang-switch { height: 36px; }
+  .lang-switch button { font-size: 12px; }
+  .actions { gap: 4px; }
+  .level-label { font-size: 13px; }
+  #topbar { flex-wrap: wrap; }
+  .hud { top: auto !important; font-size: 11px; padding: 8px 10px; }
+  #hud-left { left: var(--gutter); bottom: calc(env(safe-area-inset-bottom) + 64px); width: calc(50% - var(--gutter) - 4px); }
+  #hud-right { right: var(--gutter); bottom: calc(env(safe-area-inset-bottom) + 64px); width: calc(50% - var(--gutter) - 4px); }
+  .meter { grid-template-columns: 36px 1fr; gap: 6px; margin: 3px 0; }
+  .bpm { display: none; }
+  .hint { font-size: 12px; padding: 8px 14px; border-radius: 14px; }
+  .flash { font-size: 48px; }
+}
+@media (max-width: 380px) {
+  .icon-btn { width: 32px; height: 32px; font-size: 14px; }
+  :root { --lang-w: 80px; }
+  .lang-switch { height: 32px; }
+}
+
+</style>
+</head>
+<body>
+  <div id="stage" aria-label="3D scene"></div>
+
+  <header id="topbar">
+    <div class="brand"><span class="logo">🫧</span><span class="brand-name" data-i18n="title">吼吼泡泡</span></div>
+    <div class="level-label-wrap"><span id="level-label" class="level-label"></span></div>
+    <nav class="actions">
+      <button id="btn-guide" class="icon-btn" data-i18n-title="guide">📖</button>
+      <button id="btn-levels" class="icon-btn" data-i18n-title="levels">🗺️</button>
+      <button id="btn-settings" class="icon-btn" data-i18n-title="settings">⚙️</button>
+      <button id="btn-sound" class="icon-btn">🔊</button>
+      <button id="btn-view" class="icon-btn" data-i18n-title="reset_view">⟲</button>
+    </nav>
+  </header>
+
+  <!-- language switch: on the outermost layer, above every overlay / modal -->
+  <div id="lang-switch" class="lang-switch" role="group" aria-label="语言 / Language">
+    <button type="button" data-lang="zh" lang="zh-CN" aria-pressed="true">中文</button>
+    <button type="button" data-lang="en" lang="en" aria-pressed="false">EN</button>
+  </div>
+
+  <section id="hud-left" class="panel hud">
+    <div class="meter"><label data-i18n="meter_volume">音量</label><div class="bar"><i id="m-volume" class="c-volume"></i></div></div>
+    <div class="meter"><label data-i18n="meter_continuity">连续</label><div class="bar"><i id="m-continuity" class="c-continuity"></i></div></div>
+    <div class="meter"><label data-i18n="meter_rhythm">节奏</label><div class="bar"><i id="m-rhythm" class="c-rhythm"></i></div><span id="m-bpm" class="bpm"></span></div>
+    <div class="meter"><label data-i18n="meter_stress">压力</label><div class="bar"><i id="m-stress" class="c-stress"></i></div></div>
+  </section>
+
+  <section id="hud-right" class="panel hud">
+    <div class="goal-head"><span data-i18n="goal">过关目标</span><span id="time-value" class="time">--</span></div>
+    <div class="goal-row">
+      <span id="chk-size" class="chk" data-i18n="goal_size">泡泡大小</span>
+      <span id="size-value" class="val"></span>
+    </div>
+    <div class="size-track" aria-hidden="true">
+      <div id="size-band" class="band"></div>
+      <div id="size-burst" class="burst"></div>
+      <div id="size-marker" class="marker"></div>
+    </div>
+    <div class="goal-row"><span id="chk-zone" class="chk" data-i18n="goal_zone">目标区域</span></div>
+    <div class="goal-row"><span data-i18n="goal_hold">保持</span><span id="hold-value" class="val"></span></div>
+    <div class="bar hold"><i id="hold-bar"></i></div>
+  </section>
+
+  <div id="hint" class="hint" role="status" aria-live="polite"></div>
+  <div id="flash" class="flash" aria-hidden="true"></div>
+  <div id="fatal" class="fatal" hidden></div>
+
+  <!-- level briefing -->
+  <div id="overlay-brief" class="overlay">
+    <div class="card">
+      <h2 id="brief-title"></h2>
+      <div id="brief-difficulty" class="difficulty"></div>
+      <ul id="brief-goals" class="goals"></ul>
+      <button id="btn-start" class="primary" data-i18n="start">开始吹泡泡</button>
+      <div id="brief-countdown" class="countdown"></div>
+      <div id="brief-error" class="error" role="alert"></div>
+    </div>
+  </div>
+
+  <!-- result -->
+  <div id="overlay-result" class="overlay" hidden>
+    <div class="card">
+      <h2 id="result-title"></h2>
+      <div id="result-stars" class="stars"></div>
+      <p id="result-msg"></p>
+      <div class="row">
+        <button id="btn-retry" data-i18n="retry">再试一次</button>
+        <button id="btn-menu" data-i18n="menu">选择关卡</button>
+        <button id="btn-next" class="primary" data-i18n="next">下一关</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- guide -->
+  <div id="modal-guide" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <div class="card wide">
+      <button class="close" data-close="modal-guide" data-i18n-title="close">✕</button>
+      <h2 id="guide-title" data-i18n="guide">操作指引</h2>
+      <div id="guide-body" class="guide"></div>
+    </div>
+  </div>
+
+  <!-- level select -->
+  <div id="modal-levels" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="levels-title">
+    <div class="card wide">
+      <button class="close" data-close="modal-levels" data-i18n-title="close">✕</button>
+      <h2 id="levels-title" data-i18n="levels">关卡</h2>
+      <div id="level-grid" class="level-grid"></div>
+    </div>
+  </div>
+
+  <!-- settings -->
+  <div id="modal-settings" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="card">
+      <button class="close" data-close="modal-settings" data-i18n-title="close">✕</button>
+      <h2 id="settings-title" data-i18n="settings">设置</h2>
+      <label class="setting"><span data-i18n="sensitivity">麦克风灵敏度</span>
+        <input id="in-sensitivity" type="range" min="0.5" max="3" step="0.1"><output id="out-sensitivity"></output></label>
+      <label class="setting"><span data-i18n="sfx_volume">音效音量</span>
+        <input id="in-volume" type="range" min="0" max="1" step="0.05"></label>
+      <button id="btn-reset-progress" data-i18n="reset_progress">重置关卡进度</button>
+      <div id="reset-msg" class="muted"></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+/* js/config.js */
+/**
+ * RoarBubbles - global tuning constants.
+ * All gameplay numbers live here so the game can be re-balanced without touching logic.
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'config', [], function () {
+  'use strict';
+
+  var config = {
+    version: '1.0.0',
+
+    /** Playable arena: x ∈ [-halfWidth, halfWidth], y ∈ [0, height], z ∈ [-halfDepth, halfDepth] */
+    arena: { halfWidth: 6, height: 8, halfDepth: 6 },
+
+    /** Where the bubble wand sits. */
+    spawn: { x: 0, y: 1.6, z: 3 },
+
+    audio: {
+      fftSize: 1024,
+      /** dB above the adaptive noise floor that maps to volume 0 */
+      floorMargin: 6,
+      /** dB span (above floor + margin) that maps to volume 0 → 1 */
+      dynamicRange: 40,
+      /** noise floor assumed before any ambient measurement (dB) */
+      initialFloorDb: -60,
+      /** fast floor adaptation time constant while calibrating on ambient sound (s) */
+      calibrateTau: 0.25,
+      /** absolute floor bounds for the adaptive noise floor */
+      minFloorDb: -90,
+      maxFloorDb: -25,
+      /** how fast the noise floor creeps upward (dB / s) when the signal is above it */
+      floorRiseRate: 0.6,
+      /** noise tracking on quiet frames: time constants (s) when the level falls / follows */
+      floorFallTau: 0.15,
+      floorTrackTau: 6,
+      /** noise fluctuation (mean |dB - floor|) estimate: start value and time constant */
+      initialNoiseDev: 1,
+      noiseDevTau: 2,
+      /** gate = floorMargin + clamp(noiseDevFactor * noiseDev - noiseDevAllowance, 0, maxNoiseMargin) */
+      noiseDevFactor: 2.5,
+      noiseDevAllowance: 2.5,
+      maxNoiseMargin: 14,
+      /** echo guard: extra volume needed to START a sound while the game's own sfx are audible
+       *  (echoStartBoost until the echo level has been learned, echoKnownBoost afterwards) */
+      echoStartBoost: 0.3,
+      echoKnownBoost: 0.08,
+      /** echo guard fall-off time constant (room reverberation tail, s) */
+      echoTailTau: 0.12,
+      /** learned echo level: rise / decay time constants (s) and over-subtraction factor */
+      echoLearnTau: 0.4,
+      echoForgetTau: 4,
+      echoOverSubtract: 1.5,
+      attackTau: 0.03,
+      releaseTau: 0.1,
+      /** hysteresis thresholds on the normalised volume */
+      activeThreshold: 0.16,
+      releaseThreshold: 0.1,
+      /** minimum seconds between two onsets */
+      onsetMinGap: 0.12,
+      /** number of recent onsets kept for rhythm estimation */
+      rhythmHistory: 7,
+      /** valid beat interval range (seconds) */
+      minBeatInterval: 0.18,
+      maxBeatInterval: 1.4,
+      /** coefficient of variation that maps to rhythm 0 */
+      maxCv: 0.38,
+      rhythmTau: 0.35,
+      continuityTau: 1.2,
+      /** time window (s) used to measure sudden volume surges */
+      surgeWindow: 0.15
+    },
+
+    bubble: {
+      startRadius: 0.12,
+      minRadius: 0.1,
+      /** bubble leaves the wand once it reaches this radius */
+      detachRadius: 0.35,
+      /** radius reachable at volume 1 (before rhythm bonus) */
+      radiusPerVolume: 3.0,
+      rhythmSizeBonus: 0.3,
+      /** exponential approach rate (1/s) toward the volume-driven radius */
+      growResponse: 1.3,
+      /** radius lost per second in silence (scaled by continuity / rhythm) */
+      shrinkRate: 0.32,
+      /** volume above which stress accumulates */
+      loudThreshold: 0.86,
+      loudStressRate: 7,
+      nearLimitStressRate: 1.6,
+      stressDecay: 0.45,
+      /** rhythm extends the burst radius by this factor */
+      rhythmBurstBonus: 0.3,
+      /** rhythm raises the surge limit by this amount */
+      rhythmSurgeBonus: 0.25,
+      damping: 1.8,
+      liftWhenBlowing: 0.18,
+      sinkWhenSilent: 0.22,
+      /** continuous (non-rhythmic) sound pushes the bubble along the level drift direction */
+      driftForce: 0.55,
+      driftDelay: 0.9,
+      driftMaxSustain: 5,
+      guideGain: 1.8,
+      windRhythmDamping: 0.8
+    },
+
+    events: {
+      growTickInterval: 0.16,
+      shrinkTickInterval: 0.32,
+      /** minimal radius change per tick to emit grow/shrink sound */
+      tickDelta: 0.012
+    },
+
+    stars: {
+      /** passing within this fraction of the time limit gives 3 / 2 stars */
+      three: 0.4,
+      two: 0.7
+    },
+
+    storageKey: 'roarbubbles.v1'
+  };
+
+  return config;
+});
+
+</script>
+  <script>
+/* js/utils.js */
+/**
+ * RoarBubbles - small, dependency free helpers (math, vectors, events, storage).
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'utils', [], function () {
+  'use strict';
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function clamp01(v) { return clamp(v, 0, 1); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  /** frame-rate independent exponential smoothing factor */
+  function smoothing(dt, tau) { return tau <= 0 ? 1 : 1 - Math.exp(-dt / tau); }
+
+  function v3(x, y, z) { return { x: x || 0, y: y || 0, z: z || 0 }; }
+  function v3copy(a) { return { x: a.x, y: a.y, z: a.z }; }
+  function v3add(a, b) { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
+  function v3sub(a, b) { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }
+  function v3scale(a, s) { return { x: a.x * s, y: a.y * s, z: a.z * s }; }
+  function v3len(a) { return Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
+  function v3dist(a, b) { return v3len(v3sub(a, b)); }
+  function v3norm(a) { var l = v3len(a); return l > 1e-9 ? v3scale(a, 1 / l) : v3(0, 0, 0); }
+
+  function mean(arr) {
+    if (!arr.length) return 0;
+    var s = 0; for (var i = 0; i < arr.length; i++) s += arr[i];
+    return s / arr.length;
+  }
+  function std(arr) {
+    if (arr.length < 2) return 0;
+    var m = mean(arr), s = 0;
+    for (var i = 0; i < arr.length; i++) s += (arr[i] - m) * (arr[i] - m);
+    return Math.sqrt(s / arr.length);
+  }
+
+  /** Minimal event emitter */
+  function Emitter() { this._h = {}; }
+  Emitter.prototype.on = function (evt, fn) {
+    (this._h[evt] = this._h[evt] || []).push(fn);
+    var self = this;
+    return function off() { self.off(evt, fn); };
+  };
+  Emitter.prototype.off = function (evt, fn) {
+    var list = this._h[evt]; if (!list) return;
+    var i = list.indexOf(fn); if (i >= 0) list.splice(i, 1);
+  };
+  Emitter.prototype.emit = function (evt, payload) {
+    var list = (this._h[evt] || []).slice().concat(this._h['*'] || []);
+    for (var i = 0; i < list.length; i++) {
+      try { list[i](payload, evt); } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+    }
+  };
+
+  /** Safe key/value storage (localStorage may throw in private mode or be absent in tests). */
+  function createStorage(backend) {
+    var mem = {};
+    var store = backend;
+    if (store === undefined) {
+      try { store = typeof localStorage !== 'undefined' ? localStorage : null; } catch (e) { store = null; }
+    }
+    return {
+      get: function (key, fallback) {
+        try {
+          var raw = store ? store.getItem(key) : mem[key];
+          if (raw === null || raw === undefined) return fallback;
+          return JSON.parse(raw);
+        } catch (e) { return fallback; }
+      },
+      set: function (key, value) {
+        var raw = JSON.stringify(value);
+        try { if (store) store.setItem(key, raw); else mem[key] = raw; } catch (e) { mem[key] = raw; }
+      }
+    };
+  }
+
+  return {
+    clamp: clamp, clamp01: clamp01, lerp: lerp, smoothing: smoothing,
+    v3: v3, v3copy: v3copy, v3add: v3add, v3sub: v3sub, v3scale: v3scale,
+    v3len: v3len, v3dist: v3dist, v3norm: v3norm,
+    mean: mean, std: std,
+    Emitter: Emitter, createStorage: createStorage
+  };
+});
+
+</script>
+  <script>
+/* js/i18n.js */
+/**
+ * RoarBubbles - i18n (zh / en). Add a language by adding a dictionary with the same keys.
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'i18n', [], function () {
+  'use strict';
+
+  var DICT = {
+    zh: {
+      title: '吼吼泡泡',
+      subtitle: '用声音吹出完美的 3D 泡泡',
+      level: '第 {n} 关',
+      levels: '关卡',
+      guide: '操作指引',
+      settings: '设置',
+      sound_on: '音效：开',
+      sound_off: '音效：关',
+      reset_view: '重置视角',
+      meter_volume: '音量',
+      meter_continuity: '连续',
+      meter_rhythm: '节奏',
+      meter_stress: '压力',
+      goal: '过关目标',
+      goal_size: '泡泡大小',
+      goal_zone: '目标区域',
+      goal_hold: '保持',
+      time_left: '剩余',
+      seconds: '秒',
+      brief_size: '泡泡半径保持在 <b>{min} – {max}</b>',
+      brief_zone: '让泡泡停留在<b>发光的目标区域</b>内',
+      brief_hold: '同时满足以上条件累计 <b>{hold} 秒</b>',
+      brief_time: '时间限制 <b>{time} 秒</b>',
+      brief_difficulty: '难度',
+      start: '开始吹泡泡',
+      calibrating: '保持安静，正在校准环境噪音…',
+      go: '吹！',
+      retry: '再试一次',
+      next: '下一关',
+      menu: '选择关卡',
+      close: '关闭',
+      passed: '过关！',
+      all_cleared: '恭喜你通关了全部关卡！',
+      failed: '失败了',
+      fail_burst_surge: '声音突然变大，泡泡被吹破了！',
+      fail_burst_stress: '持续太大声，泡泡承受不住破掉了！',
+      fail_burst_overinflate: '泡泡吹得太大，撑破了！',
+      fail_escaped: '泡泡飘出了有效区域，飞走了！',
+      fail_timeout: '时间到了！',
+      time_used: '用时 {t} 秒',
+      tip_start: '对着麦克风有节奏地 “呼—呼—呼—” 吹出泡泡',
+      tip_too_loud: '太大声了！泡泡快撑不住了',
+      tip_drifting: '持续的声音会把泡泡吹跑，试试有节奏地吹',
+      tip_need_rhythm: '保持稳定的节奏，泡泡会自动飞向目标',
+      tip_bigger: '再大声一点，让泡泡变大',
+      tip_smaller: '轻一点，让泡泡缩小一些',
+      tip_go_zone: '用稳定的节奏把泡泡引到目标区域',
+      tip_hold: '完美！保持住！',
+      mic_denied: '无法使用麦克风：权限被拒绝。请在浏览器设置中允许麦克风访问后刷新页面。',
+      mic_nodevice: '没有找到麦克风等音频输入设备。',
+      mic_insecure: '麦克风只能在 HTTPS 或 localhost 下使用，请通过 HTTPS / 本地服务器打开本页面。',
+      mic_unsupported: '当前浏览器不支持麦克风采集，请使用最新版 Chrome / Edge / Firefox / Safari。',
+      mic_error: '麦克风启动失败：{msg}',
+      webgl_error: '无法初始化 3D 渲染（WebGL 不可用或 three.js 加载失败）。',
+      sensitivity: '麦克风灵敏度',
+      sfx_volume: '音效音量',
+      reset_progress: '重置关卡进度',
+      reset_done: '进度已重置',
+      locked: '未解锁',
+      guide_html:
+        '<h3>🎯 游戏目标</h3><p>每一关都会给出<b>泡泡大小范围</b>、<b>目标区域</b>（发光的球形区域）和<b>保持时长</b>。让泡泡以正确的大小停留在目标区域内，累计达到保持时长即可过关。</p>' +
+        '<h3>🎤 用声音控制</h3><ul>' +
+        '<li><b>音量</b>：声音越大，泡泡越大；声音小或停下来，泡泡会慢慢变小。</li>' +
+        '<li><b>突然变大 / 一直很大</b>：泡泡会被吹破！注意“压力”条。</li>' +
+        '<li><b>连续性</b>：连续发声能让泡泡在短暂停顿时不缩小，但一直不停地吹，泡泡会被吹跑、飘出有效区域。</li>' +
+        '<li><b>节奏</b>：像 “呼—呼—呼—” 一样稳定地一下一下吹，节奏感越强，泡泡越能变大且不容易破，并会被引导飞向目标区域、不会飘走。</li></ul>' +
+        '<h3>🖐 视角操作</h3><ul><li>电脑：鼠标拖动旋转视角，滚轮缩放。</li><li>手机/平板：单指拖动旋转，双指捏合缩放。</li><li>点击 ⟲ 按钮恢复默认视角。</li></ul>' +
+        '<h3>📊 界面说明</h3><ul><li>左侧：音量、连续、节奏、压力四个实时指标。</li><li>右侧：泡泡大小（绿色区间为目标范围）、是否在目标区域、保持进度和剩余时间。</li><li>目标区域中的两个圆环分别表示最小、最大目标尺寸。</li></ul>' +
+        '<h3>💡 小技巧</h3><ul><li>开始前保持安静 1 秒，游戏会自动校准环境噪音。</li><li>先轻轻有节奏地吹，等节奏条升起后再逐渐加大音量。</li><li>建议佩戴耳机，避免游戏音效被麦克风收录。</li><li>声音太小或太大可在 ⚙ 设置中调整麦克风灵敏度。</li></ul>'
+    },
+    en: {
+      title: 'RoarBubbles',
+      subtitle: 'Blow perfect 3D bubbles with your voice',
+      level: 'Level {n}',
+      levels: 'Levels',
+      guide: 'How to play',
+      settings: 'Settings',
+      sound_on: 'Sound: on',
+      sound_off: 'Sound: off',
+      reset_view: 'Reset view',
+      meter_volume: 'Volume',
+      meter_continuity: 'Flow',
+      meter_rhythm: 'Rhythm',
+      meter_stress: 'Stress',
+      goal: 'Goal',
+      goal_size: 'Bubble size',
+      goal_zone: 'Target zone',
+      goal_hold: 'Hold',
+      time_left: 'Time',
+      seconds: 's',
+      brief_size: 'Keep the bubble radius within <b>{min} – {max}</b>',
+      brief_zone: 'Keep the bubble inside the <b>glowing target zone</b>',
+      brief_hold: 'Meet both conditions for <b>{hold} s</b> in total',
+      brief_time: 'Time limit <b>{time} s</b>',
+      brief_difficulty: 'Difficulty',
+      start: 'Start blowing',
+      calibrating: 'Stay quiet – calibrating room noise…',
+      go: 'Blow!',
+      retry: 'Retry',
+      next: 'Next level',
+      menu: 'Levels',
+      close: 'Close',
+      passed: 'Level cleared!',
+      all_cleared: 'Congratulations, you cleared every level!',
+      failed: 'Failed',
+      fail_burst_surge: 'A sudden loud sound popped the bubble!',
+      fail_burst_stress: 'Too loud for too long – the bubble gave in!',
+      fail_burst_overinflate: 'The bubble was blown too big and burst!',
+      fail_escaped: 'The bubble drifted out of the arena and flew away!',
+      fail_timeout: 'Time is up!',
+      time_used: 'Time {t} s',
+      tip_start: 'Blow into the microphone in a steady rhythm: "hoo – hoo – hoo"',
+      tip_too_loud: 'Too loud! The bubble is about to burst',
+      tip_drifting: 'Continuous sound blows the bubble away – try a rhythm',
+      tip_need_rhythm: 'Keep a steady rhythm and the bubble will steer to the target',
+      tip_bigger: 'A little louder to grow the bubble',
+      tip_smaller: 'Softer – let the bubble shrink a bit',
+      tip_go_zone: 'Use a steady rhythm to guide the bubble into the zone',
+      tip_hold: 'Perfect! Hold it!',
+      mic_denied: 'Microphone permission denied. Allow microphone access in your browser settings and reload.',
+      mic_nodevice: 'No microphone or audio input device found.',
+      mic_insecure: 'The microphone only works over HTTPS or on localhost. Please open this page via HTTPS / a local server.',
+      mic_unsupported: 'This browser cannot capture the microphone. Please use a recent Chrome / Edge / Firefox / Safari.',
+      mic_error: 'Could not start the microphone: {msg}',
+      webgl_error: 'Could not initialise 3D rendering (WebGL unavailable or three.js failed to load).',
+      sensitivity: 'Mic sensitivity',
+      sfx_volume: 'Sound volume',
+      reset_progress: 'Reset level progress',
+      reset_done: 'Progress reset',
+      locked: 'Locked',
+      guide_html:
+        '<h3>🎯 Goal</h3><p>Every level shows a <b>bubble size range</b>, a <b>target zone</b> (glowing sphere) and a <b>hold time</b>. Keep a bubble of the right size inside the zone until the hold time is reached.</p>' +
+        '<h3>🎤 Voice controls</h3><ul>' +
+        '<li><b>Volume</b>: louder = bigger bubble; quiet or silent = it slowly shrinks.</li>' +
+        '<li><b>Sudden or constant loudness</b>: the bubble bursts! Watch the “Stress” bar.</li>' +
+        '<li><b>Continuity</b>: continuous sound keeps the bubble from shrinking in short pauses, but never stopping blows it away out of the arena.</li>' +
+        '<li><b>Rhythm</b>: blow in steady pulses (“hoo – hoo – hoo”). The stronger the rhythm, the bigger and safer the bubble gets, and it is guided to the target zone instead of drifting away.</li></ul>' +
+        '<h3>🖐 Camera</h3><ul><li>Desktop: drag to orbit, mouse wheel to zoom.</li><li>Phone / tablet: one finger to orbit, pinch to zoom.</li><li>Tap ⟲ to reset the view.</li></ul>' +
+        '<h3>📊 HUD</h3><ul><li>Left: live Volume, Flow, Rhythm and Stress meters.</li><li>Right: bubble size (green band = target range), zone status, hold progress and remaining time.</li><li>The two rings inside the zone show the minimum and maximum target size.</li></ul>' +
+        '<h3>💡 Tips</h3><ul><li>Stay quiet for a second before each level – the room noise is calibrated automatically.</li><li>Start softly in rhythm, then raise the volume once the rhythm bar is up.</li><li>Headphones prevent the game sounds from leaking into the microphone.</li><li>Adjust the microphone sensitivity in ⚙ settings if needed.</li></ul>'
+    }
+  };
+
+  var current = 'zh';
+
+  function detect(navLang) {
+    var l = String(navLang || (typeof navigator !== 'undefined' && navigator.language) || 'zh').toLowerCase();
+    return l.indexOf('zh') === 0 ? 'zh' : 'en';
+  }
+
+  function setLang(lang) { if (DICT[lang]) current = lang; return current; }
+  function getLang() { return current; }
+
+  /** translate a key, replacing {name} placeholders. Falls back to zh then to the key itself. */
+  function t(key, params) {
+    var s = (DICT[current] && DICT[current][key]);
+    if (s === undefined) s = DICT.zh[key];
+    if (s === undefined) return key;
+    if (params) s = s.replace(/\{(\w+)\}/g, function (m, k) { return params[k] !== undefined ? params[k] : m; });
+    return s;
+  }
+
+  return { DICT: DICT, t: t, setLang: setLang, getLang: getLang, detect: detect, languages: Object.keys(DICT) };
+});
+
+</script>
+  <script>
+/* js/audioAnalyzer.js */
+/**
+ * RoarBubbles - VoiceAnalyzer
+ *
+ * Turns raw microphone samples into the three gameplay signals:
+ *   volume      (0..1, loudness above the adaptive noise floor)
+ *   continuity  (0..1, how continuously sound has been present recently) + sustain (s of unbroken sound)
+ *   rhythm      (0..1, regularity of the onset intervals)
+ * plus `surge` (sudden loudness increase) used for bursting.
+ *
+ * Pure logic: no Web Audio dependency, so it is fully unit-testable.
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'audioAnalyzer', ['config', 'utils'], function (config, U) {
+  'use strict';
+
+  function computeRms(samples) {
+    if (!samples || !samples.length) return 0;
+    var s = 0;
+    for (var i = 0; i < samples.length; i++) s += samples[i] * samples[i];
+    return Math.sqrt(s / samples.length);
+  }
+
+  function rmsToDb(rms) { return 20 * Math.log10(Math.max(rms, 1e-9)); }
+
+  function VoiceAnalyzer(options) {
+    this.cfg = Object.assign({}, config.audio, options || {});
+    this.sensitivity = 1;
+    this.floorDb = this.cfg.initialFloorDb;
+    this.noiseDev = this.cfg.initialNoiseDev;
+    this.echoDb = null;
+    this.reset();
+  }
+
+  /** Reset the gameplay state. The measured noise floor is kept unless `hard` is true. */
+  VoiceAnalyzer.prototype.reset = function (hard) {
+    this.time = 0;
+    if (hard || typeof this.floorDb !== 'number') {
+      this.floorDb = this.cfg.initialFloorDb;
+      this.noiseDev = this.cfg.initialNoiseDev;
+      this.echoDb = null;
+    }
+    this.echoGuard = 0;
+    this.volume = 0;
+    this.active = false;
+    this.onsets = [];
+    this.lastOnset = -Infinity;
+    this.rhythmTarget = 0;
+    this.rhythm = 0;
+    this.continuity = 0;
+    this.sustain = 0;
+    this.history = [];
+    this.meanInterval = 0;
+  };
+
+  /** sensitivity multiplier (0.25 .. 4). Higher = quieter sounds reach full volume. */
+  VoiceAnalyzer.prototype.setSensitivity = function (s) {
+    this.sensitivity = U.clamp(Number(s) || 1, 0.25, 4);
+  };
+
+  VoiceAnalyzer.prototype.process = function (samples, dt) {
+    return this.processRms(computeRms(samples), dt);
+  };
+
+  /**
+   * Extra dB above the floor required before anything counts as sound. It grows with how much the
+   * room noise fluctuates, so a noisy (fan, traffic, keyboard) room cannot blow the bubble by itself.
+   */
+  VoiceAnalyzer.prototype.gateDb = function () {
+    var c = this.cfg;
+    return c.floorMargin + U.clamp(c.noiseDevFactor * this.noiseDev - c.noiseDevAllowance, 0, c.maxNoiseMargin);
+  };
+
+  VoiceAnalyzer.prototype._updateFloor = function (db, dt) {
+    var c = this.cfg;
+    // the game's own sound effects coming back through the speakers must not shift the noise estimate
+    if (this.echoGuard > 0.05) return;
+    if (!this.active && db < this.floorDb + this.gateDb()) {
+      // quiet frame: learn the noise level and how much it fluctuates
+      var tau = db < this.floorDb ? c.floorFallTau : c.floorTrackTau;
+      this.floorDb += (db - this.floorDb) * U.smoothing(dt, tau);
+      this.noiseDev += (Math.abs(db - this.floorDb) - this.noiseDev) * U.smoothing(dt, c.noiseDevTau);
+    } else {
+      // loud frame: the floor may only creep upward (very long sounds become the new "silence")
+      this.floorDb += Math.min(Math.max(0, db - this.floorDb), c.floorRiseRate * dt);
+    }
+    this.floorDb = U.clamp(this.floorDb, c.minFloorDb, c.maxFloorDb);
+  };
+
+  /**
+   * Learn how loud our own sound effects arrive at the microphone (frames where the guard is up and the
+   * player is silent) and subtract that power while they play: a light-weight acoustic echo canceller.
+   */
+  VoiceAnalyzer.prototype._removeEcho = function (db, dt) {
+    var c = this.cfg;
+    var g = this.echoGuard;
+    if (g <= 0) return db;
+    if (g > 0.5 && !this.active && db > this.floorDb) {
+      if (this.echoDb === null) this.echoDb = Math.min(db, this.floorDb + this.gateDb() + 0.5 * c.dynamicRange);
+      else this.echoDb += (db - this.echoDb) * U.smoothing(dt, db > this.echoDb ? c.echoLearnTau : c.echoForgetTau);
+    }
+    if (this.echoDb === null) return db;
+    var p = Math.pow(10, db / 10) - c.echoOverSubtract * g * Math.pow(10, this.echoDb / 10);
+    return Math.max(10 * Math.log10(Math.max(p, 1e-18)), Math.min(db, this.floorDb));
+  };
+
+  /**
+   * Tell the analyser that the game itself is currently making sound (0..1). While the guard is up,
+   * starting a new sound needs a clearly louder input, so speaker → microphone echo of the sound
+   * effects cannot inflate the bubble (that feedback loop could otherwise "play" a level by itself).
+   * The guard falls off with a short tail for room reverberation.
+   */
+  VoiceAnalyzer.prototype.setEchoGuard = function (level, dt) {
+    var g = U.clamp01(Number(level) || 0);
+    if (g >= this.echoGuard) this.echoGuard = g;
+    else this.echoGuard += (g - this.echoGuard) * U.smoothing(Math.max(0, dt || 0), this.cfg.echoTailTau);
+    if (this.echoGuard < 0.01) this.echoGuard = 0;
+    return this.echoGuard;
+  };
+
+  VoiceAnalyzer.prototype._updateRhythm = function (onset) {
+    var c = this.cfg;
+    var t = this.time;
+    if (onset) {
+      this.onsets.push(t);
+      if (this.onsets.length > c.rhythmHistory) this.onsets.shift();
+      var intervals = [];
+      for (var i = 1; i < this.onsets.length; i++) intervals.push(this.onsets[i] - this.onsets[i - 1]);
+      var last = intervals[intervals.length - 1];
+      if (last !== undefined && (last < c.minBeatInterval || last > c.maxBeatInterval)) {
+        // tempo broken: restart rhythm history from this onset
+        this.onsets = [t];
+        intervals = [];
+      }
+      if (intervals.length >= 3) {
+        var m = U.mean(intervals);
+        var cv = U.std(intervals) / m;
+        var regularity = U.clamp01(1 - cv / c.maxCv);
+        var confidence = Math.min(1, intervals.length / 4);
+        this.rhythmTarget = regularity * confidence;
+        this.meanInterval = m;
+      } else {
+        this.rhythmTarget = 0;
+        this.meanInterval = intervals.length ? U.mean(intervals) : 0;
+      }
+    }
+    // no beat for too long (silence or one long continuous sound) → rhythm fades
+    var patience = Math.max(1.6 * (this.meanInterval || 0), 0.9);
+    if (this.onsets.length && t - this.lastOnset > patience) {
+      this.rhythmTarget = 0;
+      this.onsets = [];
+      this.meanInterval = 0;
+    }
+  };
+
+  /**
+   * Calibrate the noise floor on ambient sound (call while the player is told to stay quiet,
+   * e.g. while the level briefing is shown). The floor follows the signal quickly in both directions.
+   */
+  VoiceAnalyzer.prototype.observeAmbient = function (rms, dt) {
+    var c = this.cfg;
+    var db = rmsToDb(rms);
+    var k = U.smoothing(Math.max(0, dt || 0), c.calibrateTau);
+    this.floorDb += (db - this.floorDb) * k;
+    this.floorDb = U.clamp(this.floorDb, c.minFloorDb, c.maxFloorDb);
+    this.noiseDev += (Math.min(Math.abs(db - this.floorDb), 20) - this.noiseDev) * k;
+    return this.floorDb;
+  };
+
+  /**
+   * Core update with an already computed RMS value.
+   * @param {number} rms linear RMS of the current frame
+   * @param {number} dt  seconds since the previous frame
+   */
+  VoiceAnalyzer.prototype.processRms = function (rms, dt) {
+    var c = this.cfg;
+    dt = Math.max(0, Math.min(dt || 0, 0.25));
+    this.time += dt;
+
+    var db = this._removeEcho(rmsToDb(rms), dt);
+    this._updateFloor(db, dt);
+    var range = c.dynamicRange / this.sensitivity;
+    var rawVolume = U.clamp01((db - this.floorDb - this.gateDb()) / range);
+
+    var tau = rawVolume > this.volume ? c.attackTau : c.releaseTau;
+    this.volume += (rawVolume - this.volume) * U.smoothing(dt, tau);
+
+    var onset = false;
+    // while our own sfx play, starting a sound needs a margin (bigger while the echo level is still unknown)
+    var startThreshold = c.activeThreshold + (this.echoDb === null ? c.echoStartBoost : c.echoKnownBoost) * this.echoGuard;
+    if (!this.active && this.volume >= startThreshold) {
+      this.active = true;
+      if (this.time - this.lastOnset >= c.onsetMinGap) {
+        onset = true;
+        this.lastOnset = this.time;
+      }
+    } else if (this.active && this.volume < c.releaseThreshold) {
+      this.active = false;
+    }
+
+    this._updateRhythm(onset);
+    this.rhythm += (this.rhythmTarget - this.rhythm) * U.smoothing(dt, c.rhythmTau);
+    this.continuity += ((this.active ? 1 : 0) - this.continuity) * U.smoothing(dt, c.continuityTau);
+    this.sustain = this.active ? this.sustain + dt : 0;
+
+    this.history.push({ t: this.time, v: this.volume });
+    while (this.history.length && this.time - this.history[0].t > c.surgeWindow) this.history.shift();
+    var minV = this.volume;
+    for (var i = 0; i < this.history.length; i++) if (this.history[i].v < minV) minV = this.history[i].v;
+    var surge = Math.max(0, this.volume - minV);
+
+    return {
+      time: this.time,
+      rms: rms,
+      db: db,
+      floorDb: this.floorDb,
+      gateDb: this.gateDb(),
+      echoGuard: this.echoGuard,
+      rawVolume: rawVolume,
+      volume: this.volume,
+      active: this.active,
+      onset: onset,
+      continuity: this.continuity,
+      sustain: this.sustain,
+      rhythm: this.rhythm,
+      bpm: this.meanInterval > 0 ? 60 / this.meanInterval : 0,
+      surge: surge
+    };
+  };
+
+  /** An "empty" analysis frame, handy for idle states and tests. */
+  function silentFrame() {
+    return { time: 0, rms: 0, db: -180, floorDb: -90, gateDb: 6, echoGuard: 0, rawVolume: 0, volume: 0, active: false, onset: false,
+      continuity: 0, sustain: 0, rhythm: 0, bpm: 0, surge: 0 };
+  }
+
+  return { VoiceAnalyzer: VoiceAnalyzer, computeRms: computeRms, rmsToDb: rmsToDb, silentFrame: silentFrame };
+});
+
+</script>
+  <script>
+/* js/bubblePhysics.js */
+/**
+ * RoarBubbles - Bubble physics.
+ *
+ * Gameplay rules (see README for the diagram):
+ *  - volume      → target radius (louder = bigger)
+ *  - surge       → sudden loudness bursts the bubble
+ *  - loud for long / radius near the limit → stress → burst
+ *  - continuity  → the bubble does not shrink in short pauses,
+ *                  but long unbroken sound (sustain) pushes it along the level drift → may escape
+ *  - rhythm      → bigger size bonus, higher burst limit, less wind, and guidance toward the target zone
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'bubblePhysics', ['config', 'utils'], function (config, U) {
+  'use strict';
+
+  var STATES = { ATTACHED: 'attached', FLOATING: 'floating', BURST: 'burst', ESCAPED: 'escaped' };
+
+  function windAt(physics, t) {
+    var w = physics.wind || { x: 0, y: 0, z: 0 };
+    var g = physics.gust || 0;
+    var mag = Math.sqrt(w.x * w.x + w.z * w.z);
+    var k = 1 + g * Math.sin(0.7 * t);
+    return {
+      x: w.x * k + g * 0.5 * mag * Math.sin(1.3 * t + 1),
+      y: (w.y || 0) + g * 0.15 * mag * Math.sin(0.9 * t + 2),
+      z: w.z * k + g * 0.5 * mag * Math.cos(1.1 * t)
+    };
+  }
+
+  function Bubble(options) {
+    this.cfg = Object.assign({}, config.bubble, options && options.bubble);
+    this.arena = Object.assign({}, config.arena, options && options.arena);
+    this.spawn = U.v3copy((options && options.spawn) || config.spawn);
+    this.reset();
+  }
+
+  Bubble.STATES = STATES;
+
+  Bubble.prototype.reset = function () {
+    this.state = STATES.ATTACHED;
+    this.radius = this.cfg.startRadius;
+    this.pos = U.v3copy(this.spawn);
+    this.vel = U.v3(0, 0, 0);
+    this.stress = 0;
+    this.time = 0;
+    this.burstReason = null;
+  };
+
+  Bubble.prototype.isAlive = function () {
+    return this.state === STATES.ATTACHED || this.state === STATES.FLOATING;
+  };
+
+  /** effective burst radius for the current rhythm */
+  Bubble.prototype.burstRadius = function (level, rhythm) {
+    return level.physics.burstRadius * (1 + this.cfg.rhythmBurstBonus * (rhythm || 0));
+  };
+
+  Bubble.prototype._updateRadius = function (f, dt) {
+    var c = this.cfg;
+    var r = this.radius;
+    if (f.active) {
+      var rv = c.minRadius + f.volume * c.radiusPerVolume * (1 + c.rhythmSizeBonus * f.rhythm);
+      if (rv > r) r += (rv - r) * U.smoothing(dt, 1 / c.growResponse);
+      else r -= Math.min(r - rv, c.shrinkRate * 0.4 * (1 - f.continuity) * dt);
+    } else {
+      r -= c.shrinkRate * (1 - f.continuity) * (1 - 0.7 * f.rhythm) * dt;
+    }
+    this.radius = Math.max(c.minRadius, r);
+  };
+
+  Bubble.prototype._updateStress = function (f, dt, level) {
+    var c = this.cfg;
+    var scale = level.physics.stressScale || 1;
+    var add = 0;
+    if (f.volume > c.loudThreshold) {
+      add += (f.volume - c.loudThreshold) * c.loudStressRate * (1 - 0.7 * f.rhythm);
+    }
+    var ratio = this.radius / this.burstRadius(level, f.rhythm);
+    if (ratio > 0.85) add += ((ratio - 0.85) / 0.15) * c.nearLimitStressRate * (1 - 0.6 * f.rhythm);
+    if (add > 0) this.stress += add * scale * dt;
+    else this.stress -= c.stressDecay * dt;
+    this.stress = U.clamp(this.stress, 0, 1);
+  };
+
+  Bubble.prototype._checkBurst = function (f, level) {
+    var c = this.cfg;
+    var surgeLimit = level.physics.surgeLimit + c.rhythmSurgeBonus * f.rhythm;
+    if (f.surge > surgeLimit) return 'surge';
+    if (this.radius >= this.burstRadius(level, f.rhythm)) return 'overinflate';
+    if (this.stress >= 1) return 'stress';
+    return null;
+  };
+
+  Bubble.prototype._updateMotion = function (f, dt, level) {
+    var c = this.cfg;
+    var t = this.time;
+    var w = windAt(level.physics, t);
+    var windK = 1 - c.windRhythmDamping * f.rhythm;
+    var force = U.v3scale(w, windK);
+
+    // continuous, unbroken sound keeps blowing the bubble away
+    var sustainExcess = U.clamp(f.sustain - c.driftDelay, 0, c.driftMaxSustain);
+    if (sustainExcess > 0) {
+      var dir = U.v3norm(level.physics.driftDir || { x: 0, y: 0.3, z: -1 });
+      force = U.v3add(force, U.v3scale(dir, c.driftForce * sustainExcess * (1 - f.rhythm)));
+    }
+
+    // rhythm guides the bubble toward the target zone
+    var g = c.guideGain * Math.pow(f.rhythm, 1.5);
+    if (g > 0) force = U.v3add(force, U.v3scale(U.v3sub(level.zone.center, this.pos), g));
+
+    force.y += f.active ? c.liftWhenBlowing * (1 - f.rhythm) : -c.sinkWhenSilent * (1 - f.rhythm);
+
+    this.vel = U.v3add(this.vel, U.v3scale(force, dt));
+    this.vel = U.v3scale(this.vel, Math.exp(-c.damping * dt));
+    this.pos = U.v3add(this.pos, U.v3scale(this.vel, dt));
+
+    if (this.pos.y < this.radius) {
+      this.pos.y = this.radius;
+      if (this.vel.y < 0) this.vel.y = -this.vel.y * 0.3;
+    }
+  };
+
+  Bubble.prototype.isOutOfArena = function () {
+    var a = this.arena, p = this.pos;
+    return Math.abs(p.x) > a.halfWidth || Math.abs(p.z) > a.halfDepth || p.y > a.height;
+  };
+
+  /**
+   * Advance the simulation.
+   * @param {object} f   analysis frame from VoiceAnalyzer
+   * @param {number} dt  seconds
+   * @param {object} level level definition (needs .physics and .zone)
+   * @returns {string[]} list of events that happened: 'detach' | 'burst' | 'escape'
+   */
+  Bubble.prototype.update = function (f, dt, level) {
+    var events = [];
+    if (!this.isAlive()) return events;
+    this.time += dt;
+
+    this._updateRadius(f, dt);
+    this._updateStress(f, dt, level);
+
+    var reason = this._checkBurst(f, level);
+    if (reason) {
+      this.state = STATES.BURST;
+      this.burstReason = reason;
+      events.push('burst');
+      return events;
+    }
+
+    if (this.state === STATES.ATTACHED) {
+      this.pos = U.v3copy(this.spawn);
+      if (this.radius >= this.cfg.detachRadius) {
+        this.state = STATES.FLOATING;
+        this.vel = U.v3(0, 0.25, -0.35);
+        events.push('detach');
+      }
+      return events;
+    }
+
+    this._updateMotion(f, dt, level);
+    if (this.isOutOfArena()) {
+      this.state = STATES.ESCAPED;
+      events.push('escape');
+    }
+    return events;
+  };
+
+  return { Bubble: Bubble, STATES: STATES, windAt: windAt };
+});
+
+</script>
+  <script>
+/* js/levels.js */
+/**
+ * RoarBubbles - Level definitions.
+ *
+ * To add a level: append an entry to LEVEL_SPECS (or call registerLevel at runtime).
+ * Each spec only needs a few "design" fields; buildLevel() derives the rest from `difficulty` (0..1).
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'levels', ['config', 'utils'], function (config, U) {
+  'use strict';
+
+  var THEMES = ['meadow', 'lake', 'desert', 'snow', 'volcano'];
+
+  /**
+   * Design table. zone: [x, y, z] of the target zone centre, size: [min, max] radius,
+   * drift: direction continuous sound pushes the bubble, wind: [x, z] base wind.
+   */
+  var LEVEL_SPECS = [
+    { name: { zh: '晨露草地', en: 'Dewy Meadow' },        theme: 'meadow',  zone: [0, 2.4, 1.5],   size: [0.5, 1.4], hold: 3,  time: 60, wind: [0, 0],        drift: [0, 0.4, -1] },
+    { name: { zh: '蒲公英坡', en: 'Dandelion Slope' },    theme: 'meadow',  zone: [0.8, 2.6, 1],   size: [0.6, 1.4], hold: 4,  time: 60, wind: [0.08, 0],     drift: [0.3, 0.4, -1] },
+    { name: { zh: '风车小径', en: 'Windmill Path' },      theme: 'meadow',  zone: [-1.2, 2.8, 0.8],size: [0.7, 1.5], hold: 4,  time: 60, wind: [-0.12, 0.05], drift: [-0.4, 0.3, -1] },
+    { name: { zh: '花海', en: 'Sea of Flowers' },          theme: 'meadow',  zone: [1.5, 3, 0],     size: [0.8, 1.5], hold: 5,  time: 65, wind: [0.15, -0.1],  drift: [1, 0.2, -0.5] },
+    { name: { zh: '镜湖', en: 'Mirror Lake' },            theme: 'lake',    zone: [-1.5, 2.6, 0],  size: [0.8, 1.5], hold: 5,  time: 65, wind: [-0.2, 0],     drift: [-1, 0.2, -0.3] },
+    { name: { zh: '睡莲湾', en: 'Lily Bay' },             theme: 'lake',    zone: [2, 3, -0.5],    size: [0.9, 1.6], hold: 5,  time: 65, wind: [0.25, -0.1],  drift: [1, 0.3, -0.3] },
+    { name: { zh: '雾中小岛', en: 'Misty Isle' },         theme: 'lake',    zone: [0, 3.4, -1.5],  size: [1.0, 1.6], hold: 6,  time: 70, wind: [0.1, 0.25],   drift: [0, 0.5, -1] },
+    { name: { zh: '瀑布潭', en: 'Waterfall Pool' },       theme: 'lake',    zone: [-2.2, 3.2, -1], size: [1.0, 1.6], hold: 6,  time: 70, wind: [-0.3, 0.1],   drift: [-1, 0.6, 0] },
+    { name: { zh: '金色沙丘', en: 'Golden Dunes' },       theme: 'desert',  zone: [2.2, 2.8, -1.5],size: [1.1, 1.7], hold: 6,  time: 70, wind: [0.35, 0],     drift: [1, 0.2, -0.4] },
+    { name: { zh: '仙人掌谷', en: 'Cactus Valley' },      theme: 'desert',  zone: [-2.5, 3.4, -1.5],size: [1.1, 1.7], hold: 7, time: 75, wind: [-0.4, 0.15],  drift: [-1, 0.3, -0.6] },
+    { name: { zh: '海市蜃楼', en: 'Mirage' },             theme: 'desert',  zone: [0.5, 4, -2.5],  size: [1.2, 1.7], hold: 7,  time: 75, wind: [0.3, 0.3],    drift: [0.3, 1, -0.5] },
+    { name: { zh: '沙暴边缘', en: 'Sandstorm Edge' },     theme: 'desert',  zone: [3, 3.4, -2],    size: [1.2, 1.75], hold: 8, time: 75, wind: [0.5, -0.2],   drift: [1, 0.3, 0] },
+    { name: { zh: '雪松林', en: 'Cedar Snowfield' },      theme: 'snow',    zone: [-3, 3.6, -2],   size: [1.3, 1.8], hold: 8,  time: 80, wind: [-0.5, 0.2],   drift: [-1, 0.4, -0.5] },
+    { name: { zh: '冰湖', en: 'Frozen Lake' },            theme: 'snow',    zone: [2.5, 4.2, -2.8],size: [1.3, 1.8], hold: 9,  time: 80, wind: [0.55, 0.25],  drift: [0.8, 0.6, -0.6] },
+    { name: { zh: '极光山脊', en: 'Aurora Ridge' },       theme: 'snow',    zone: [0, 4.8, -3],    size: [1.4, 1.85], hold: 9, time: 80, wind: [0.4, -0.45],  drift: [0, 1, -0.6] },
+    { name: { zh: '暴风雪', en: 'Blizzard' },             theme: 'snow',    zone: [-3.2, 4.4, -2.5],size: [1.4, 1.85], hold: 10, time: 85, wind: [-0.65, 0.3], drift: [-1, 0.5, -0.2] },
+    { name: { zh: '熔岩平原', en: 'Lava Plains' },        theme: 'volcano', zone: [3.2, 4, -3],    size: [1.5, 1.9], hold: 10, time: 85, wind: [0.7, -0.2],   drift: [1, 0.8, 0] },
+    { name: { zh: '火山口', en: 'Crater Rim' },           theme: 'volcano', zone: [-2.8, 5, -3.2], size: [1.5, 1.9], hold: 11, time: 90, wind: [-0.7, 0.35],  drift: [-0.8, 1, -0.4] },
+    { name: { zh: '灰烬风暴', en: 'Ash Storm' },          theme: 'volcano', zone: [0, 5.4, -3.6],  size: [1.6, 1.95], hold: 11, time: 90, wind: [0.6, 0.6],   drift: [0, 1, -1] },
+    { name: { zh: '巨龙之息', en: "Dragon's Breath" },    theme: 'volcano', zone: [3.4, 5, -3.4],  size: [1.65, 1.95], hold: 12, time: 90, wind: [0.85, -0.35], drift: [1, 0.8, -0.4] }
+  ];
+
+  /** Derive a full level object from a design spec. */
+  function buildLevel(spec, index, total) {
+    var n = total || LEVEL_SPECS.length;
+    var d = spec.difficulty !== undefined ? spec.difficulty : (n > 1 ? index / (n - 1) : 0);
+    var zoneRadius = spec.zoneRadius !== undefined ? spec.zoneRadius : U.lerp(2.4, 0.95, d);
+    // the zone must be able to contain a bubble of the minimum required size
+    zoneRadius = Math.max(zoneRadius, spec.size[0] * 0.6);
+    var burstMargin = U.lerp(0.9, 0.38, d);
+    return {
+      id: index + 1,
+      name: spec.name,
+      theme: spec.theme,
+      difficulty: d,
+      target: { minRadius: spec.size[0], maxRadius: spec.size[1] },
+      zone: { center: { x: spec.zone[0], y: spec.zone[1], z: spec.zone[2] }, radius: zoneRadius },
+      holdTime: spec.hold,
+      timeLimit: spec.time,
+      /** progress lost per second when leaving the zone / size window (seconds per second) */
+      holdDecay: spec.holdDecay !== undefined ? spec.holdDecay : U.lerp(0.4, 3, d),
+      physics: {
+        burstRadius: spec.size[1] + burstMargin,
+        surgeLimit: spec.surgeLimit !== undefined ? spec.surgeLimit : U.lerp(0.9, 0.68, d),
+        stressScale: U.lerp(0.7, 1.4, d),
+        wind: { x: spec.wind[0], y: 0, z: spec.wind[1] },
+        gust: U.lerp(0, 0.6, d),
+        driftDir: { x: spec.drift[0], y: spec.drift[1], z: spec.drift[2] }
+      }
+    };
+  }
+
+  var LEVELS = LEVEL_SPECS.map(function (s, i) { return buildLevel(s, i, LEVEL_SPECS.length); });
+
+  /** Validate a level against the arena. Returns a list of human readable problems (empty = valid). */
+  function validateLevel(level, arena) {
+    var a = arena || config.arena;
+    var errs = [];
+    var z = level.zone;
+    if (!level.name || !level.name.zh || !level.name.en) errs.push('missing bilingual name');
+    if (THEMES.indexOf(level.theme) < 0) errs.push('unknown theme ' + level.theme);
+    if (!(level.target.minRadius > 0 && level.target.maxRadius > level.target.minRadius)) errs.push('bad target size');
+    if (level.physics.burstRadius <= level.target.maxRadius) errs.push('burst radius must exceed max target radius');
+    if (Math.abs(z.center.x) + z.radius > a.halfWidth) errs.push('zone outside arena (x)');
+    if (Math.abs(z.center.z) + z.radius > a.halfDepth) errs.push('zone outside arena (z)');
+    if (z.center.y + z.radius > a.height || z.center.y - z.radius < 0) errs.push('zone outside arena (y)');
+    if (!(level.holdTime > 0) || !(level.timeLimit > level.holdTime)) errs.push('bad timing');
+    if (level.physics.surgeLimit <= 0 || level.physics.surgeLimit > 1) errs.push('bad surge limit');
+    return errs;
+  }
+
+  /** Runtime extension point: add a new level built from a spec. */
+  function registerLevel(spec) {
+    LEVEL_SPECS.push(spec);
+    var lvl = buildLevel(spec, LEVELS.length, LEVELS.length + 1);
+    var errs = validateLevel(lvl);
+    if (errs.length) { LEVEL_SPECS.pop(); throw new Error('Invalid level: ' + errs.join(', ')); }
+    LEVELS.push(lvl);
+    return lvl;
+  }
+
+  return { LEVELS: LEVELS, LEVEL_SPECS: LEVEL_SPECS, THEMES: THEMES, buildLevel: buildLevel, validateLevel: validateLevel, registerLevel: registerLevel };
+});
+
+</script>
+  <script>
+/* js/levelEvaluator.js */
+/**
+ * RoarBubbles - LevelEvaluator: checks the pass conditions (size window + zone + hold time + time limit).
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'levelEvaluator', ['config', 'utils'], function (config, U) {
+  'use strict';
+
+  function LevelEvaluator(level) {
+    this.level = level;
+    this.reset();
+  }
+
+  LevelEvaluator.prototype.reset = function () {
+    this.hold = 0;
+    this.elapsed = 0;
+    this.inZone = false;
+    this.sizeOk = false;
+    this.passed = false;
+    this.timedOut = false;
+  };
+
+  LevelEvaluator.prototype.checkSize = function (radius) {
+    var t = this.level.target;
+    return radius >= t.minRadius && radius <= t.maxRadius;
+  };
+
+  LevelEvaluator.prototype.checkZone = function (pos) {
+    return U.v3dist(pos, this.level.zone.center) <= this.level.zone.radius;
+  };
+
+  /**
+   * @param {{radius:number,pos:{x,y,z}}} bubble
+   * @param {number} dt
+   * @param {boolean} floating whether the bubble is free (attached bubbles never count)
+   */
+  LevelEvaluator.prototype.update = function (bubble, dt, floating) {
+    if (this.passed || this.timedOut) return this.snapshot();
+    this.elapsed += dt;
+    this.sizeOk = this.checkSize(bubble.radius);
+    this.inZone = floating !== false && this.checkZone(bubble.pos);
+    if (this.sizeOk && this.inZone) this.hold += dt;
+    else this.hold = Math.max(0, this.hold - this.level.holdDecay * dt);
+    if (this.hold >= this.level.holdTime) { this.hold = this.level.holdTime; this.passed = true; }
+    else if (this.elapsed >= this.level.timeLimit) this.timedOut = true;
+    return this.snapshot();
+  };
+
+  LevelEvaluator.prototype.snapshot = function () {
+    return {
+      hold: this.hold,
+      holdProgress: U.clamp01(this.hold / this.level.holdTime),
+      elapsed: this.elapsed,
+      remaining: Math.max(0, this.level.timeLimit - this.elapsed),
+      inZone: this.inZone,
+      sizeOk: this.sizeOk,
+      passed: this.passed,
+      timedOut: this.timedOut
+    };
+  };
+
+  /** 1..3 stars depending on how much of the time limit was used. */
+  function starsFor(elapsed, timeLimit) {
+    var r = elapsed / timeLimit;
+    if (r <= config.stars.three) return 3;
+    if (r <= config.stars.two) return 2;
+    return 1;
+  }
+
+  return { LevelEvaluator: LevelEvaluator, starsFor: starsFor };
+});
+
+</script>
+  <script>
+/* js/gameEngine.js */
+/**
+ * RoarBubbles - GameEngine: headless game loop / state machine.
+ *
+ *   idle → ready → playing → passed | failed → ready (retry / next)
+ *
+ * It owns the VoiceAnalyzer, the Bubble and the LevelEvaluator and only talks to the outside through
+ * events, which makes it renderer-agnostic and testable in Node (closed-loop tests drive it directly).
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this,
+  'gameEngine', ['config', 'utils', 'audioAnalyzer', 'bubblePhysics', 'levels', 'levelEvaluator'],
+  function (config, U, AA, BP, LV, LE) {
+    'use strict';
+
+    var STATES = { IDLE: 'idle', READY: 'ready', PLAYING: 'playing', PASSED: 'passed', FAILED: 'failed' };
+
+    function GameEngine(options) {
+      options = options || {};
+      U.Emitter.call(this);
+      this.levels = options.levels || LV.LEVELS;
+      this.storage = options.storage || U.createStorage();
+      this.analyzer = options.analyzer || new AA.VoiceAnalyzer();
+      this.bubble = new BP.Bubble(options);
+      this.state = STATES.IDLE;
+      this.levelIndex = -1;
+      this.level = null;
+      this.evaluator = null;
+      this.lastFrame = AA.silentFrame();
+      this.lastEval = null;
+      this.failReason = null;
+      this.result = null;
+      this.progress = this._loadProgress();
+    }
+    GameEngine.prototype = Object.create(U.Emitter.prototype);
+    GameEngine.prototype.constructor = GameEngine;
+    GameEngine.STATES = STATES;
+
+    GameEngine.prototype._loadProgress = function () {
+      var p = this.storage.get(config.storageKey + '.progress', null);
+      if (!p || typeof p.unlocked !== 'number' || typeof p.stars !== 'object') p = { unlocked: 1, stars: {} };
+      p.unlocked = U.clamp(Math.floor(p.unlocked), 1, this.levels.length);
+      return p;
+    };
+
+    GameEngine.prototype._saveProgress = function () {
+      this.storage.set(config.storageKey + '.progress', this.progress);
+    };
+
+    GameEngine.prototype.resetProgress = function () {
+      this.progress = { unlocked: 1, stars: {} };
+      this._saveProgress();
+    };
+
+    GameEngine.prototype.isUnlocked = function (index) {
+      return index >= 0 && index < this.progress.unlocked;
+    };
+
+    GameEngine.prototype._setState = function (s) {
+      var prev = this.state;
+      this.state = s;
+      this.emit('state', { state: s, prev: prev });
+    };
+
+    /** Prepare a level (index is 0 based). */
+    GameEngine.prototype.loadLevel = function (index) {
+      if (index < 0 || index >= this.levels.length) throw new RangeError('level index out of range: ' + index);
+      this.levelIndex = index;
+      this.level = this.levels[index];
+      this.evaluator = new LE.LevelEvaluator(this.level);
+      this.bubble.reset();
+      this.analyzer.reset();
+      this.lastFrame = AA.silentFrame();
+      this.lastEval = this.evaluator.snapshot();
+      this.failReason = null;
+      this.result = null;
+      this._wasInZone = false;
+      this._wasSizeOk = false;
+      this._tickRadius = this.bubble.radius;
+      this._growTimer = 0;
+      this._shrinkTimer = 0;
+      this.emit('level', { index: index, level: this.level });
+      this._setState(STATES.READY);
+      return this.level;
+    };
+
+    GameEngine.prototype.start = function () {
+      if (this.state !== STATES.READY) return false;
+      this._setState(STATES.PLAYING);
+      return true;
+    };
+
+    GameEngine.prototype.retry = function () { return this.loadLevel(this.levelIndex); };
+
+    GameEngine.prototype.hasNext = function () { return this.levelIndex + 1 < this.levels.length; };
+
+    GameEngine.prototype.next = function () {
+      if (!this.hasNext()) return null;
+      return this.loadLevel(this.levelIndex + 1);
+    };
+
+    /** Feed raw microphone samples (Float32Array) – used by the browser loop. */
+    GameEngine.prototype.update = function (samples, dt) {
+      if (this.state !== STATES.PLAYING) return null;
+      return this.stepFrame(this.analyzer.process(samples, dt), dt);
+    };
+
+    /** Feed a linear RMS value – handy for simulations. */
+    GameEngine.prototype.updateRms = function (rms, dt) {
+      if (this.state !== STATES.PLAYING) return null;
+      return this.stepFrame(this.analyzer.processRms(rms, dt), dt);
+    };
+
+    /** Advance one tick with an already analysed frame. */
+    GameEngine.prototype.stepFrame = function (frame, dt) {
+      if (this.state !== STATES.PLAYING) return null;
+      var b = this.bubble;
+      this.lastFrame = frame;
+      var evs = b.update(frame, dt, this.level);
+      for (var i = 0; i < evs.length; i++) {
+        if (evs[i] === 'detach') this.emit('detach', { radius: b.radius, pos: U.v3copy(b.pos) });
+      }
+      if (!b.isAlive()) {
+        if (b.state === BP.STATES.BURST) {
+          this.emit('burst', { reason: b.burstReason, radius: b.radius, pos: U.v3copy(b.pos) });
+          this._fail(b.burstReason === 'surge' ? 'burst_surge' : b.burstReason === 'stress' ? 'burst_stress' : 'burst_overinflate');
+        } else {
+          this.emit('escape', { radius: b.radius, pos: U.v3copy(b.pos), vel: U.v3copy(b.vel) });
+          this._fail('escaped');
+        }
+        return this._emitFrame();
+      }
+
+      this._soundTicks(dt);
+
+      var ev = this.evaluator.update(b, dt, b.state === BP.STATES.FLOATING);
+      this.lastEval = ev;
+      if (ev.inZone !== this._wasInZone) { this.emit(ev.inZone ? 'enterZone' : 'leaveZone', ev); this._wasInZone = ev.inZone; }
+      if (ev.sizeOk !== this._wasSizeOk) { this.emit(ev.sizeOk ? 'sizeOk' : 'sizeLost', ev); this._wasSizeOk = ev.sizeOk; }
+
+      if (ev.passed) this._pass();
+      else if (ev.timedOut) this._fail('timeout');
+      return this._emitFrame();
+    };
+
+    GameEngine.prototype._soundTicks = function (dt) {
+      var c = config.events;
+      var r = this.bubble.radius;
+      this._growTimer += dt;
+      this._shrinkTimer += dt;
+      var delta = r - this._tickRadius;
+      if (delta > c.tickDelta && this._growTimer >= c.growTickInterval) {
+        this.emit('grow', { radius: r, delta: delta });
+        this._growTimer = 0; this._tickRadius = r;
+      } else if (delta < -c.tickDelta && this._shrinkTimer >= c.shrinkTickInterval) {
+        this.emit('shrink', { radius: r, delta: delta });
+        this._shrinkTimer = 0; this._tickRadius = r;
+      }
+    };
+
+    GameEngine.prototype._emitFrame = function () {
+      var snap = this.snapshot();
+      this.emit('frame', snap);
+      return snap;
+    };
+
+    GameEngine.prototype._pass = function () {
+      var stars = LE.starsFor(this.evaluator.elapsed, this.level.timeLimit);
+      var id = String(this.level.id);
+      this.progress.stars[id] = Math.max(this.progress.stars[id] || 0, stars);
+      this.progress.unlocked = Math.min(this.levels.length, Math.max(this.progress.unlocked, this.levelIndex + 2));
+      this._saveProgress();
+      this.result = { passed: true, stars: stars, elapsed: this.evaluator.elapsed };
+      this.emit('pass', this.result);
+      this._setState(STATES.PASSED);
+    };
+
+    GameEngine.prototype._fail = function (reason) {
+      this.failReason = reason;
+      this.result = { passed: false, reason: reason, elapsed: this.evaluator.elapsed };
+      this.emit('fail', this.result);
+      this._setState(STATES.FAILED);
+    };
+
+    GameEngine.prototype.snapshot = function () {
+      var b = this.bubble;
+      return {
+        state: this.state,
+        levelIndex: this.levelIndex,
+        audio: this.lastFrame,
+        bubble: {
+          state: b.state, radius: b.radius, pos: U.v3copy(b.pos), vel: U.v3copy(b.vel), stress: b.stress,
+          burstRadius: this.level ? b.burstRadius(this.level, this.lastFrame.rhythm) : 0
+        },
+        eval: this.lastEval
+      };
+    };
+
+    return { GameEngine: GameEngine, STATES: STATES };
+  });
+
+</script>
+  <script>
+/* js/hints.js */
+/**
+ * RoarBubbles - contextual hints: picks the most useful tip (i18n key) for the current game snapshot.
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'hints', [], function () {
+  'use strict';
+
+  /**
+   * @param {object} snap GameEngine snapshot
+   * @param {object} level level definition
+   * @returns {string} i18n key
+   */
+  function pickHint(snap, level) {
+    if (!snap || !level || snap.state !== 'playing') return 'tip_start';
+    var a = snap.audio, b = snap.bubble, e = snap.eval || {};
+    if (b.stress > 0.45 || b.radius > b.burstRadius * 0.9) return 'tip_too_loud';
+    if (a.sustain > 1.2 && a.rhythm < 0.3) return 'tip_drifting';
+    if (b.state === 'attached') return 'tip_start';
+    if (e.sizeOk && e.inZone) return 'tip_hold';
+    if (b.radius < level.target.minRadius) return 'tip_bigger';
+    if (b.radius > level.target.maxRadius) return 'tip_smaller';
+    if (a.rhythm < 0.3) return 'tip_need_rhythm';
+    return 'tip_go_zone';
+  }
+
+  return { pickHint: pickHint };
+});
+
+</script>
+  <script>
+/* js/sfx.js */
+/**
+ * RoarBubbles - procedural sound effects (Web Audio, no audio files).
+ * Extensible: Sfx.register('name', function (ctx, out, params) { ... }).
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'sfx', ['config', 'utils'], function (config, U) {
+  'use strict';
+
+  /** schedule one enveloped oscillator note */
+  function tone(ctx, out, o) {
+    var t0 = ctx.currentTime + (o.delay || 0);
+    var dur = o.dur || 0.2;
+    var osc = ctx.createOscillator();
+    var g = ctx.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(o.f0, t0);
+    if (o.f1) osc.frequency.exponentialRampToValueAtTime(Math.max(1, o.f1), t0 + (o.bend || dur));
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, o.gain || 0.2), t0 + (o.attack || 0.01));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g);
+    g.connect(out);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.05);
+    return osc;
+  }
+
+  var noiseCache = null;
+  function noiseBuffer(ctx) {
+    if (noiseCache && noiseCache.ctx === ctx) return noiseCache.buf;
+    var len = Math.floor(ctx.sampleRate * 0.6);
+    var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    noiseCache = { ctx: ctx, buf: buf };
+    return buf;
+  }
+
+  function noise(ctx, out, o) {
+    var t0 = ctx.currentTime + (o.delay || 0);
+    var src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(ctx);
+    var filter = ctx.createBiquadFilter();
+    filter.type = o.filter || 'bandpass';
+    filter.frequency.setValueAtTime(o.freq || 1500, t0);
+    if (o.freqEnd) filter.frequency.exponentialRampToValueAtTime(o.freqEnd, t0 + o.dur);
+    filter.Q.value = o.q || 1;
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(o.gain || 0.3, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + o.dur);
+    src.connect(filter); filter.connect(g); g.connect(out);
+    src.start(t0);
+    src.stop(t0 + o.dur + 0.05);
+    return src;
+  }
+
+  var SOUNDS = {
+    /** bubbly "bloop" – lower pitch for bigger bubbles */
+    grow: function (ctx, out, p) {
+      var f = 700 / (0.6 + (p && p.radius || 0.3));
+      tone(ctx, out, { type: 'sine', f0: f, f1: f * 1.7, bend: 0.07, dur: 0.13, gain: 0.12 });
+    },
+    shrink: function (ctx, out, p) {
+      var f = 600 / (0.6 + (p && p.radius || 0.3));
+      tone(ctx, out, { type: 'triangle', f0: f * 1.2, f1: f * 0.6, dur: 0.18, gain: 0.06 });
+    },
+    detach: function (ctx, out) {
+      tone(ctx, out, { type: 'sine', f0: 660, f1: 990, dur: 0.12, gain: 0.12 });
+      tone(ctx, out, { type: 'sine', f0: 990, f1: 1320, dur: 0.14, gain: 0.08, delay: 0.08 });
+    },
+    burst: function (ctx, out) {
+      noise(ctx, out, { freq: 2400, freqEnd: 600, q: 0.7, dur: 0.28, gain: 0.5 });
+      tone(ctx, out, { type: 'sine', f0: 180, f1: 40, dur: 0.22, gain: 0.35 });
+      for (var i = 0; i < 4; i++) {
+        tone(ctx, out, { type: 'sine', f0: 1800 + Math.random() * 1600, f1: 900, dur: 0.06, gain: 0.04, delay: 0.05 + i * 0.04 });
+      }
+    },
+    escape: function (ctx, out) {
+      tone(ctx, out, { type: 'sine', f0: 500, f1: 1900, bend: 1.0, dur: 1.1, gain: 0.12, attack: 0.05 });
+      noise(ctx, out, { filter: 'highpass', freq: 3000, dur: 0.9, gain: 0.05 });
+    },
+    enterZone: function (ctx, out) {
+      tone(ctx, out, { type: 'sine', f0: 880, dur: 0.35, gain: 0.1 });
+      tone(ctx, out, { type: 'sine', f0: 1320, dur: 0.45, gain: 0.07, delay: 0.07 });
+    },
+    leaveZone: function (ctx, out) {
+      tone(ctx, out, { type: 'triangle', f0: 440, f1: 330, dur: 0.2, gain: 0.07 });
+    },
+    pass: function (ctx, out) {
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach(function (f, i) {
+        tone(ctx, out, { type: 'triangle', f0: f, dur: 0.35, gain: 0.14, delay: i * 0.11 });
+        tone(ctx, out, { type: 'sine', f0: f * 2, dur: 0.25, gain: 0.04, delay: i * 0.11 + 0.02 });
+      });
+    },
+    fail: function (ctx, out) {
+      [392, 330, 262].forEach(function (f, i) {
+        tone(ctx, out, { type: 'triangle', f0: f, f1: f * 0.97, dur: 0.3, gain: 0.12, delay: i * 0.16 });
+      });
+    },
+    click: function (ctx, out) {
+      tone(ctx, out, { type: 'sine', f0: 1200, f1: 800, dur: 0.05, gain: 0.06 });
+    },
+    countdown: function (ctx, out, p) {
+      tone(ctx, out, { type: 'sine', f0: p && p.final ? 1046 : 660, dur: 0.15, gain: 0.1 });
+    }
+  };
+
+  /**
+   * How long (s) each sound stays audible, used by the microphone echo guard.
+   * Unknown / registered sounds fall back to DEFAULT_DURATION.
+   */
+  var DURATIONS = { grow: 0.13, shrink: 0.18, detach: 0.22, burst: 0.3, escape: 1.1, enterZone: 0.52,
+    leaveZone: 0.2, pass: 0.8, fail: 0.65, click: 0.05, countdown: 0.15 };
+  var DEFAULT_DURATION = 0.5;
+
+  function defaultContextFactory() {
+    var Ctor = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
+    return Ctor ? new Ctor() : null;
+  }
+
+  function Sfx(options) {
+    options = options || {};
+    this.storage = options.storage || U.createStorage();
+    this.ctxFactory = options.contextFactory || defaultContextFactory;
+    this.key = config.storageKey + '.sfx';
+    var saved = this.storage.get(this.key, null) || {};
+    this.enabled = saved.enabled !== false;
+    this.volume = typeof saved.volume === 'number' ? U.clamp01(saved.volume) : 0.8;
+    this.ctx = null;
+    this.master = null;
+    this.sounds = Object.assign({}, SOUNDS);
+    this.durations = Object.assign({}, DURATIONS);
+    this.audibleUntil = 0;
+  }
+
+  Sfx.SOUNDS = SOUNDS;
+
+  Sfx.prototype._persist = function () {
+    this.storage.set(this.key, { enabled: this.enabled, volume: this.volume });
+  };
+
+  /** lazily create / resume the AudioContext (must be called from a user gesture at least once) */
+  Sfx.prototype.ensure = function () {
+    if (!this.ctx) {
+      try { this.ctx = this.ctxFactory(); } catch (e) { this.ctx = null; }
+      if (!this.ctx) return null;
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.volume;
+      this.master.connect(this.ctx.destination);
+    }
+    if (this.ctx.state === 'suspended' && this.ctx.resume) { try { this.ctx.resume(); } catch (e) { /* ignore */ } }
+    return this.ctx;
+  };
+
+  Sfx.prototype.setEnabled = function (on) { this.enabled = !!on; this._persist(); return this.enabled; };
+  Sfx.prototype.toggle = function () { return this.setEnabled(!this.enabled); };
+  Sfx.prototype.setVolume = function (v) {
+    this.volume = U.clamp01(Number(v));
+    if (this.master) this.master.gain.value = this.volume;
+    this._persist();
+  };
+
+  /** @param {number} [duration] seconds the sound is audible (for the echo guard) */
+  Sfx.prototype.register = function (soundName, fn, duration) {
+    this.sounds[soundName] = fn;
+    if (typeof duration === 'number') this.durations[soundName] = duration;
+  };
+
+  /** true while one of our own sounds is (still) coming out of the speakers */
+  Sfx.prototype.isAudible = function () {
+    if (!this.enabled || !this.ctx || this.volume <= 0) return false;
+    return this.ctx.currentTime < this.audibleUntil;
+  };
+
+  /** @returns {boolean} whether the sound was scheduled */
+  Sfx.prototype.play = function (soundName, params) {
+    if (!this.enabled) return false;
+    var fn = this.sounds[soundName];
+    if (!fn) return false;
+    var ctx = this.ensure();
+    if (!ctx) return false;
+    try { fn(ctx, this.master, params || {}); } catch (e) { return false; }
+    var d = this.durations[soundName];
+    this.audibleUntil = Math.max(this.audibleUntil, ctx.currentTime + (typeof d === 'number' ? d : DEFAULT_DURATION));
+    return true;
+  };
+
+  return { Sfx: Sfx, SOUNDS: SOUNDS, DURATIONS: DURATIONS };
+});
+
+</script>
+  <script>
+/* js/micInput.js */
+/**
+ * RoarBubbles - MicInput: captures the microphone (input devices only) through getUserMedia + AnalyserNode.
+ * Dependencies are injectable so it can be unit-tested with fakes.
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'micInput', ['config'], function (config) {
+  'use strict';
+
+  var CONSTRAINTS = {
+    audio: {
+      echoCancellation: true, // keeps the game's own sound effects out of the input
+      noiseSuppression: false, // blowing is "noise" – do not let the browser remove it
+      autoGainControl: false // AGC would flatten the loudness we want to measure
+    },
+    video: false
+  };
+
+  function MicInput(options) {
+    options = options || {};
+    var g = typeof window !== 'undefined' ? window : {};
+    this.mediaDevices = options.mediaDevices !== undefined ? options.mediaDevices : (g.navigator && g.navigator.mediaDevices);
+    this.AudioContextCtor = options.AudioContextCtor || g.AudioContext || g.webkitAudioContext;
+    this.isSecure = options.isSecureContext !== undefined ? options.isSecureContext : g.isSecureContext !== false;
+    this.fftSize = options.fftSize || config.audio.fftSize;
+    this.ctx = null; this.stream = null; this.analyser = null; this.buffer = null; this.byteBuffer = null;
+    this.running = false;
+  }
+
+  MicInput.CONSTRAINTS = CONSTRAINTS;
+
+  MicInput.prototype.isSupported = function () {
+    return !!(this.mediaDevices && this.mediaDevices.getUserMedia && this.AudioContextCtor);
+  };
+
+  /** map a getUserMedia error to an i18n key */
+  MicInput.errorKey = function (err) {
+    var n = err && (err.name || err.code);
+    if (n === 'NotAllowedError' || n === 'PermissionDeniedError' || n === 'SecurityError') return 'mic_denied';
+    if (n === 'NotFoundError' || n === 'DevicesNotFoundError' || n === 'OverconstrainedError') return 'mic_nodevice';
+    if (n === 'insecure') return 'mic_insecure';
+    if (n === 'unsupported') return 'mic_unsupported';
+    return 'mic_error';
+  };
+
+  /** @returns {Promise<MicInput>} */
+  MicInput.prototype.start = function () {
+    var self = this;
+    if (this.running) return Promise.resolve(this);
+    if (!this.isSecure && !(this.mediaDevices && this.mediaDevices.getUserMedia)) {
+      return Promise.reject({ name: 'insecure' });
+    }
+    if (!this.isSupported()) return Promise.reject({ name: 'unsupported' });
+    return this.mediaDevices.getUserMedia(CONSTRAINTS).then(function (stream) {
+      self.stream = stream;
+      self.ctx = new self.AudioContextCtor();
+      var src = self.ctx.createMediaStreamSource(stream);
+      self.analyser = self.ctx.createAnalyser();
+      self.analyser.fftSize = self.fftSize;
+      self.analyser.smoothingTimeConstant = 0;
+      src.connect(self.analyser); // not connected to destination: no echo of the mic
+      self.buffer = new Float32Array(self.analyser.fftSize);
+      self.byteBuffer = new Uint8Array(self.analyser.fftSize);
+      if (self.ctx.state === 'suspended' && self.ctx.resume) self.ctx.resume();
+      self.running = true;
+      return self;
+    });
+  };
+
+  /** @returns {Float32Array|null} latest time-domain samples in -1..1 */
+  MicInput.prototype.read = function () {
+    if (!this.running || !this.analyser) return null;
+    if (this.analyser.getFloatTimeDomainData) {
+      this.analyser.getFloatTimeDomainData(this.buffer);
+    } else {
+      this.analyser.getByteTimeDomainData(this.byteBuffer);
+      for (var i = 0; i < this.byteBuffer.length; i++) this.buffer[i] = (this.byteBuffer[i] - 128) / 128;
+    }
+    return this.buffer;
+  };
+
+  MicInput.prototype.resume = function () {
+    if (this.ctx && this.ctx.state === 'suspended' && this.ctx.resume) this.ctx.resume();
+  };
+
+  MicInput.prototype.stop = function () {
+    if (this.stream && this.stream.getTracks) this.stream.getTracks().forEach(function (t) { t.stop(); });
+    if (this.ctx && this.ctx.close) { try { this.ctx.close(); } catch (e) { /* ignore */ } }
+    this.running = false;
+    this.ctx = null; this.stream = null; this.analyser = null;
+  };
+
+  return { MicInput: MicInput };
+});
+
+</script>
+  <script>
+/* js/orbitCamera.js */
+/**
+ * RoarBubbles - lightweight orbit camera controls (mouse drag / wheel, touch drag / pinch).
+ * Works with any camera exposing position.set(x,y,z) and lookAt(x,y,z).
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'orbitCamera', ['utils'], function (U) {
+  'use strict';
+
+  var DEFAULTS = {
+    target: { x: 0, y: 2.8, z: -0.5 },
+    distance: 15,
+    theta: 0.0, // azimuth around Y (0 = looking toward -z from +z)
+    phi: 1.3, // polar angle from +Y
+    minDistance: 5,
+    maxDistance: 32,
+    minPhi: 0.15,
+    maxPhi: 1.52,
+    rotateSpeed: 0.006,
+    zoomSpeed: 0.0015
+  };
+
+  function OrbitCamera(camera, options) {
+    this.camera = camera;
+    this.opts = Object.assign({}, DEFAULTS, options || {});
+    this.pointers = {};
+    this.pinchDist = 0;
+    this.element = null;
+    this.reset();
+  }
+
+  OrbitCamera.DEFAULTS = DEFAULTS;
+
+  OrbitCamera.prototype.reset = function () {
+    var o = this.opts;
+    this.target = U.v3copy(o.target);
+    this.distance = o.distance;
+    this.theta = o.theta;
+    this.phi = o.phi;
+    this.apply();
+  };
+
+  OrbitCamera.prototype.position = function () {
+    var s = Math.sin(this.phi);
+    return {
+      x: this.target.x + this.distance * s * Math.sin(this.theta),
+      y: this.target.y + this.distance * Math.cos(this.phi),
+      z: this.target.z + this.distance * s * Math.cos(this.theta)
+    };
+  };
+
+  OrbitCamera.prototype.apply = function () {
+    var o = this.opts;
+    this.phi = U.clamp(this.phi, o.minPhi, o.maxPhi);
+    this.distance = U.clamp(this.distance, o.minDistance, o.maxDistance);
+    if (!this.camera) return;
+    var p = this.position();
+    this.camera.position.set(p.x, p.y, p.z);
+    this.camera.lookAt(this.target.x, this.target.y, this.target.z);
+  };
+
+  OrbitCamera.prototype.rotate = function (dx, dy) {
+    this.theta -= dx * this.opts.rotateSpeed;
+    this.phi -= dy * this.opts.rotateSpeed;
+    this.apply();
+  };
+
+  /** positive delta zooms out */
+  OrbitCamera.prototype.zoom = function (delta) {
+    this.distance *= Math.exp(delta * this.opts.zoomSpeed);
+    this.apply();
+  };
+
+  OrbitCamera.prototype._onDown = function (e) {
+    this.pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (this.element.setPointerCapture) { try { this.element.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
+    this.pinchDist = this._pinchDistance();
+  };
+
+  OrbitCamera.prototype._pinchDistance = function () {
+    var ids = Object.keys(this.pointers);
+    if (ids.length < 2) return 0;
+    var a = this.pointers[ids[0]], b = this.pointers[ids[1]];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+
+  OrbitCamera.prototype._onMove = function (e) {
+    var p = this.pointers[e.pointerId];
+    if (!p) return;
+    var dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    var count = Object.keys(this.pointers).length;
+    if (count === 1) this.rotate(dx, dy);
+    else if (count === 2) {
+      var d = this._pinchDistance();
+      if (this.pinchDist > 0 && d > 0) this.zoom((this.pinchDist - d) * 4);
+      this.pinchDist = d;
+    }
+  };
+
+  OrbitCamera.prototype._onUp = function (e) {
+    delete this.pointers[e.pointerId];
+    this.pinchDist = this._pinchDistance();
+  };
+
+  OrbitCamera.prototype._onWheel = function (e) {
+    if (e.preventDefault) e.preventDefault();
+    this.zoom(e.deltaY);
+  };
+
+  OrbitCamera.prototype.attach = function (element) {
+    var self = this;
+    this.element = element;
+    this._handlers = {
+      pointerdown: function (e) { self._onDown(e); },
+      pointermove: function (e) { self._onMove(e); },
+      pointerup: function (e) { self._onUp(e); },
+      pointercancel: function (e) { self._onUp(e); },
+      pointerleave: function (e) { if (e.pointerType === 'mouse') self._onUp(e); },
+      wheel: function (e) { self._onWheel(e); },
+      dblclick: function () { self.reset(); }
+    };
+    Object.keys(this._handlers).forEach(function (k) {
+      element.addEventListener(k, self._handlers[k], k === 'wheel' ? { passive: false } : false);
+    });
+    return this;
+  };
+
+  OrbitCamera.prototype.detach = function () {
+    var self = this;
+    if (!this.element) return;
+    Object.keys(this._handlers).forEach(function (k) { self.element.removeEventListener(k, self._handlers[k]); });
+    this.element = null;
+  };
+
+  return { OrbitCamera: OrbitCamera };
+});
+
+</script>
+  <script>
+/* js/renderer3d.js */
+/**
+ * RoarBubbles - Three.js 3D renderer: themed terrain, target zone, iridescent bubble and effects.
+ * New terrains can be added with Renderer3D.registerTheme(name, style).
+ */
+(function (root, name, deps, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory.apply(null, deps.map(function (d) { return require('./' + d); }));
+  } else {
+    var ns = (root.RB = root.RB || {});
+    ns[name] = factory.apply(null, deps.map(function (d) { return ns[d]; }));
+  }
+})(typeof self !== 'undefined' ? self : this, 'renderer3d', ['config', 'utils', 'orbitCamera'], function (config, U, OC) {
+  'use strict';
+
+  function seeded(seed) {
+    var s = seed >>> 0 || 1;
+    return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  }
+
+  /** Terrain height (outside the arena it rises into hills). */
+  function terrainHeight(x, z, amp) {
+    var d = Math.sqrt(x * x + z * z);
+    var h = 0.04 * (1 + Math.sin(x * 0.9) * Math.cos(z * 0.7));
+    if (d > 9) h += Math.min(14, Math.pow(d - 9, 1.15) * 0.12 * (amp || 1)) * (0.65 + 0.35 * Math.sin(x * 0.27 + z * 0.19));
+    return h;
+  }
+
+  var THEMES = {
+    meadow: { skyTop: 0x6fb8ff, skyBottom: 0xe8f6ff, fog: 0xdcefff, ground: [0x7cc95e, 0x4f9a3e], hemi: [0xffffff, 0x4f7a3a], hills: 1, clouds: true, props: 'flowers' },
+    lake: { skyTop: 0x5aa7e0, skyBottom: 0xd9f0ff, fog: 0xcfe8f7, ground: [0x8bc77c, 0x5d9c5a], hemi: [0xffffff, 0x3c6a5a], hills: 1.2, clouds: true, props: 'lake' },
+    desert: { skyTop: 0x7fb6e8, skyBottom: 0xffe7c0, fog: 0xffe2b8, ground: [0xf0cf8a, 0xd6a75a], hemi: [0xfff4e0, 0x9a7440], hills: 0.7, clouds: true, props: 'cactus' },
+    snow: { skyTop: 0x8aa8d0, skyBottom: 0xeef4fb, fog: 0xe4edf7, ground: [0xffffff, 0xd2deea], hemi: [0xffffff, 0x8899aa], hills: 1.4, clouds: false, props: 'pines', particles: 'snow' },
+    volcano: { skyTop: 0x1a0f1a, skyBottom: 0x6a2a20, fog: 0x3a1c18, ground: [0x4a3a36, 0x2a201e], hemi: [0xffb080, 0x301010], hills: 1.6, clouds: false, props: 'volcano', particles: 'embers' }
+  };
+
+  var BUBBLE_VERT = [
+    'uniform float uTime; uniform float uStress; uniform float uWobble;',
+    'varying vec3 vN; varying vec3 vV;',
+    'void main(){',
+    '  vec3 p = position;',
+    '  float w = sin(p.x*6.0+uTime*7.0)*sin(p.y*5.0+uTime*5.3)*sin(p.z*4.0+uTime*6.1);',
+    '  p += normal * w * (0.025 + uStress*0.12 + uWobble*0.06);',
+    '  vec4 mv = modelViewMatrix * vec4(p, 1.0);',
+    '  vN = normalize(normalMatrix * normal);',
+    '  vV = normalize(-mv.xyz);',
+    '  gl_Position = projectionMatrix * mv;',
+    '}'
+  ].join('\n');
+
+  var BUBBLE_FRAG = [
+    'uniform float uTime; uniform float uStress; uniform float uGlow; uniform float uOpacity; uniform vec3 uTint;',
+    'varying vec3 vN; varying vec3 vV;',
+    'void main(){',
+    '  vec3 n = normalize(vN); vec3 v = normalize(vV);',
+    '  float ndv = clamp(dot(n, v), 0.0, 1.0);',
+    '  float fr = pow(1.0 - ndv, 2.2);',
+    '  vec3 irid = 0.5 + 0.5*cos(6.2831*(vec3(0.0,0.33,0.67) + fr*1.4 + uTime*0.05 + n.y*0.35));',
+    '  vec3 L = normalize(vec3(0.5, 0.8, 0.4)); vec3 H = normalize(L + v);',
+    '  float spec = pow(max(dot(n, H), 0.0), 80.0);',
+    '  vec3 L2 = normalize(vec3(-0.6, 0.3, 0.5)); float spec2 = pow(max(dot(n, normalize(L2+v)), 0.0), 30.0)*0.35;',
+    '  vec3 col = mix(irid, vec3(1.0, 0.3, 0.25), uStress*0.65) * (0.35 + fr) + (spec + spec2) * 1.2 + uTint*uGlow;',
+    '  float a = clamp(0.07 + fr*0.85 + spec + spec2 + uGlow*0.25, 0.0, 1.0) * uOpacity;',
+    '  gl_FragColor = vec4(col, a);',
+    '}'
+  ].join('\n');
+
+  var SKY_VERT = 'varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }';
+  var SKY_FRAG = 'uniform vec3 top; uniform vec3 bottom; varying vec3 vW; void main(){ float h = clamp(normalize(vW).y*1.4+0.15, 0.0, 1.0); gl_FragColor = vec4(mix(bottom, top, h), 1.0); }';
+
+  function disposeTree(obj) {
+    obj.traverse(function (o) {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(function (m) { m.dispose(); });
+    });
+  }
+
+  function Renderer3D(container, THREE) {
+    if (!THREE) throw new Error('three.js not loaded');
+    this.THREE = THREE;
+    this.container = container;
+    this.effects = [];
+    this.time = 0;
+    this.level = null;
+    this.displayRadius = config.bubble.startRadius;
+    this.bubbleMode = 'alive';
+    this._init();
+  }
+
+  Renderer3D.THEMES = THEMES;
+  Renderer3D.terrainHeight = terrainHeight;
+  Renderer3D.registerTheme = function (name, style) { THEMES[name] = style; };
+
+  Renderer3D.prototype._init = function () {
+    var T = this.THREE;
+    var r = this.renderer = new T.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    r.setPixelRatio(Math.min((typeof window !== 'undefined' && window.devicePixelRatio) || 1, 2));
+    this.container.appendChild(r.domElement);
+    r.domElement.className = 'scene-canvas';
+
+    this.scene = new T.Scene();
+    this.camera = new T.PerspectiveCamera(50, 1, 0.1, 400);
+    this.orbit = new OC.OrbitCamera(this.camera).attach(r.domElement);
+
+    this.hemi = new T.HemisphereLight(0xffffff, 0x445544, 0.9);
+    this.scene.add(this.hemi);
+    var sun = new T.DirectionalLight(0xffffff, 0.75);
+    sun.position.set(6, 12, 8);
+    this.scene.add(sun);
+
+    this.sky = new T.Mesh(new T.SphereGeometry(160, 32, 16), new T.ShaderMaterial({
+      vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: T.BackSide, depthWrite: false,
+      uniforms: { top: { value: new T.Color(0x6fb8ff) }, bottom: { value: new T.Color(0xe8f6ff) } }
+    }));
+    this.scene.add(this.sky);
+
+    this.world = new T.Group();
+    this.scene.add(this.world);
+    this._buildStatic();
+    this._buildBubble();
+    this.resize();
+  };
+
+  /** arena bounds + bubble wand: shared by every level */
+  Renderer3D.prototype._buildStatic = function () {
+    var T = this.THREE, a = config.arena, s = config.spawn;
+    var box = new T.LineSegments(
+      new T.EdgesGeometry(new T.BoxGeometry(a.halfWidth * 2, a.height, a.halfDepth * 2)),
+      new T.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22 })
+    );
+    box.position.set(0, a.height / 2, 0);
+    this.scene.add(box);
+    this.arenaBox = box;
+
+    var wand = new T.Group();
+    var ring = new T.Mesh(new T.TorusGeometry(0.3, 0.035, 12, 40), new T.MeshStandardMaterial({ color: 0xff6fa8, roughness: 0.4, metalness: 0.1 }));
+    var stick = new T.Mesh(new T.CylinderGeometry(0.03, 0.04, s.y - 0.3, 10), new T.MeshStandardMaterial({ color: 0xffd34d, roughness: 0.6 }));
+    stick.position.y = -(s.y - 0.3) / 2 - 0.3;
+    wand.add(ring); wand.add(stick);
+    wand.position.set(s.x, s.y, s.z);
+    this.scene.add(wand);
+    this.wand = wand;
+  };
+
+  Renderer3D.prototype._buildBubble = function () {
+    var T = this.THREE;
+    this.bubbleUniforms = {
+      uTime: { value: 0 }, uStress: { value: 0 }, uWobble: { value: 0 }, uGlow: { value: 0 },
+      uOpacity: { value: 1 }, uTint: { value: new T.Color(0xffd34d) }
+    };
+    var mat = new T.ShaderMaterial({
+      vertexShader: BUBBLE_VERT, fragmentShader: BUBBLE_FRAG, uniforms: this.bubbleUniforms,
+      transparent: true, depthWrite: false
+    });
+    this.bubble = new T.Mesh(new T.SphereGeometry(1, 48, 32), mat);
+    this.bubble.renderOrder = 10;
+    this.scene.add(this.bubble);
+
+    this.shadow = new T.Mesh(new T.CircleGeometry(1, 32), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }));
+    this.shadow.rotation.x = -Math.PI / 2;
+    this.scene.add(this.shadow);
+
+    var lineGeo = new T.BufferGeometry();
+    lineGeo.setAttribute('position', new T.Float32BufferAttribute([0, 0, 0, 0, 1, 0], 3));
+    this.heightLine = new T.Line(lineGeo, new T.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 }));
+    this.scene.add(this.heightLine);
+  };
+
+  /** Build the themed world + target zone for a level. */
+  Renderer3D.prototype.setLevel = function (level) {
+    var T = this.THREE;
+    this.level = level;
+    this.clearEffects();
+    disposeTree(this.world);
+    this.world.clear ? this.world.clear() : (this.world.children.length = 0);
+
+    var th = THEMES[level.theme] || THEMES.meadow;
+    this.theme = th;
+    this.sky.material.uniforms.top.value.set(th.skyTop);
+    this.sky.material.uniforms.bottom.value.set(th.skyBottom);
+    this.scene.fog = new T.Fog(th.fog, 30, 110);
+    this.hemi.color.set(th.hemi[0]);
+    this.hemi.groundColor.set(th.hemi[1]);
+
+    this._buildTerrain(th, level.id);
+    this._buildProps(th, level.id);
+    this._buildZone(level);
+    this.particles = th.particles ? this._buildAmbientParticles(th.particles) : null;
+    this.resetBubble();
+  };
+
+  Renderer3D.prototype._buildTerrain = function (th, seed) {
+    var T = this.THREE;
+    var geo = new T.PlaneGeometry(220, 220, 110, 110);
+    geo.rotateX(-Math.PI / 2);
+    var pos = geo.attributes.position;
+    var colors = [];
+    var ca = new T.Color(th.ground[0]), cb = new T.Color(th.ground[1]), c = new T.Color();
+    for (var i = 0; i < pos.count; i++) {
+      var x = pos.getX(i), z = pos.getZ(i);
+      var h = terrainHeight(x, z, th.hills);
+      pos.setY(i, h);
+      var n = 0.5 + 0.5 * Math.sin(x * 0.45 + seed) * Math.cos(z * 0.37 - seed);
+      c.copy(ca).lerp(cb, U.clamp01(n * 0.7 + h * 0.04));
+      colors.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    var mesh = new T.Mesh(geo, new T.MeshLambertMaterial({ vertexColors: true }));
+    this.world.add(mesh);
+
+    // arena floor outline
+    var a = config.arena;
+    var pts = [-a.halfWidth, 0.06, -a.halfDepth, a.halfWidth, 0.06, -a.halfDepth, a.halfWidth, 0.06, a.halfDepth, -a.halfWidth, 0.06, a.halfDepth, -a.halfWidth, 0.06, -a.halfDepth];
+    var g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pts, 3));
+    this.world.add(new T.Line(g, new T.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })));
+  };
+
+  /** random prop positions on a ring; keeps the corridor between the default camera and the arena clear */
+  Renderer3D.prototype._ringPositions = function (rand, count, minR, maxR) {
+    var out = [];
+    for (var guard = 0; out.length < count && guard < count * 20; guard++) {
+      var ang = rand() * Math.PI * 2, d = minR + rand() * (maxR - minR);
+      var x = Math.cos(ang) * d, z = Math.sin(ang) * d;
+      if (z > 2 && Math.abs(x) < 13 && d < 28) continue;
+      if (Math.abs(x) < 6.6 && Math.abs(z) < 6.6) continue; // keep the arena itself clear
+      out.push({ x: x, z: z, y: terrainHeight(x, z, this.theme.hills) });
+    }
+    return out;
+  };
+
+  Renderer3D.prototype._buildProps = function (th, seed) {
+    var T = this.THREE, W = this.world, rand = seeded(seed * 97 + 13), self = this;
+    function std(color, extra) { return new T.MeshStandardMaterial(Object.assign({ color: color, roughness: 0.8 }, extra || {})); }
+
+    if (th.clouds) {
+      var cloudMat = std(0xffffff, { roughness: 1, transparent: true, opacity: 0.92 });
+      for (var c = 0; c < 9; c++) {
+        var cloud = new T.Group();
+        for (var k = 0; k < 4; k++) {
+          var puff = new T.Mesh(new T.SphereGeometry(1.4 + rand() * 1.4, 12, 10), cloudMat);
+          puff.position.set(k * 1.6 - 2.4, rand() * 0.8, rand() * 1.2);
+          cloud.add(puff);
+        }
+        var ang = rand() * Math.PI * 2, d = 30 + rand() * 40;
+        cloud.position.set(Math.cos(ang) * d, 16 + rand() * 12, Math.sin(ang) * d - 10);
+        W.add(cloud);
+      }
+    }
+
+    if (th.props === 'flowers' || th.props === 'lake') {
+      var cols = [0xff6fa8, 0xffd34d, 0xffffff, 0xb07cff, 0xff8a4d];
+      this._ringPositions(rand, 70, 6.5, 22).forEach(function (p) {
+        var stem = new T.Mesh(new T.CylinderGeometry(0.02, 0.02, 0.45, 5), std(0x3f8a32));
+        stem.position.set(p.x, p.y + 0.22, p.z);
+        var head = new T.Mesh(new T.SphereGeometry(0.12, 8, 6), std(cols[Math.floor(rand() * cols.length)], { roughness: 0.5 }));
+        head.position.set(p.x, p.y + 0.47, p.z);
+        W.add(stem); W.add(head);
+      });
+      this._ringPositions(rand, 16, 13, 30).forEach(function (p) { self._tree(p, 1 + rand() * 0.8, 0x3f9a4a); });
+    }
+    if (th.props === 'lake') {
+      var water = new T.Mesh(new T.CircleGeometry(7, 48), new T.MeshPhongMaterial({ color: 0x3aa0d8, transparent: true, opacity: 0.75, shininess: 90, specular: 0xffffff }));
+      water.rotation.x = -Math.PI / 2; water.position.set(0, 0.1, -1);
+      W.add(water);
+      for (var l = 0; l < 10; l++) {
+        var pad = new T.Mesh(new T.CircleGeometry(0.35 + rand() * 0.25, 16), std(0x4caf50, { side: T.DoubleSide }));
+        var la = rand() * Math.PI * 2, ld = 1 + rand() * 5;
+        pad.rotation.x = -Math.PI / 2; pad.position.set(Math.cos(la) * ld, 0.12, Math.sin(la) * ld - 1);
+        W.add(pad);
+      }
+    }
+    if (th.props === 'cactus') {
+      this._ringPositions(rand, 26, 7, 28).forEach(function (p) {
+        var h = 1 + rand() * 1.8, m = std(0x3e8f4a);
+        var body = new T.Mesh(new T.CylinderGeometry(0.22, 0.25, h, 10), m);
+        body.position.set(p.x, p.y + h / 2, p.z);
+        W.add(body);
+        if (rand() > 0.4) {
+          var arm = new T.Mesh(new T.CylinderGeometry(0.12, 0.12, 0.6, 8), m);
+          arm.position.set(p.x + 0.35, p.y + h * 0.6, p.z);
+          W.add(arm);
+        }
+      });
+      this._ringPositions(rand, 12, 9, 30).forEach(function (p) {
+        var rock = new T.Mesh(new T.DodecahedronGeometry(0.4 + rand() * 0.8, 0), std(0xc08a50));
+        rock.position.set(p.x, p.y + 0.2, p.z); W.add(rock);
+      });
+    }
+    if (th.props === 'pines') {
+      this._ringPositions(rand, 40, 8, 32).forEach(function (p) { self._pine(p, 1 + rand()); });
+      var ice = new T.Mesh(new T.CircleGeometry(5, 40), new T.MeshPhongMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.6, shininess: 120, specular: 0xffffff }));
+      ice.rotation.x = -Math.PI / 2; ice.position.set(2, 0.08, -2); W.add(ice);
+    }
+    if (th.props === 'volcano') {
+      var cone = new T.Mesh(new T.ConeGeometry(14, 16, 32, 1, true), std(0x2e2220, { flatShading: true }));
+      cone.position.set(-18, 6, -38); W.add(cone);
+      var glow = new T.Mesh(new T.SphereGeometry(2.6, 16, 12), new T.MeshBasicMaterial({ color: 0xff5a1a }));
+      glow.position.set(-18, 13.6, -38); W.add(glow);
+      var lavaMat = new T.MeshBasicMaterial({ color: 0xff6a1a });
+      this._ringPositions(rand, 14, 7, 24).forEach(function (p) {
+        var pool = new T.Mesh(new T.CircleGeometry(0.6 + rand() * 1.4, 20), lavaMat);
+        pool.rotation.x = -Math.PI / 2; pool.position.set(p.x, p.y + 0.05, p.z); W.add(pool);
+      });
+      this._ringPositions(rand, 20, 8, 30).forEach(function (p) {
+        var rock = new T.Mesh(new T.DodecahedronGeometry(0.5 + rand(), 0), std(0x1e1614, { flatShading: true }));
+        rock.position.set(p.x, p.y + 0.3, p.z); W.add(rock);
+      });
+      var lavaLight = new T.PointLight(0xff5a1a, 1.2, 40);
+      lavaLight.position.set(0, 3, -6); W.add(lavaLight);
+    }
+  };
+
+  Renderer3D.prototype._tree = function (p, s, color) {
+    var T = this.THREE;
+    var trunk = new T.Mesh(new T.CylinderGeometry(0.12 * s, 0.16 * s, 1.2 * s, 8), new T.MeshStandardMaterial({ color: 0x7a5230 }));
+    trunk.position.set(p.x, p.y + 0.6 * s, p.z);
+    var crown = new T.Mesh(new T.SphereGeometry(0.9 * s, 12, 10), new T.MeshStandardMaterial({ color: color, roughness: 0.9 }));
+    crown.position.set(p.x, p.y + 1.6 * s, p.z);
+    this.world.add(trunk); this.world.add(crown);
+  };
+
+  Renderer3D.prototype._pine = function (p, s) {
+    var T = this.THREE;
+    var trunk = new T.Mesh(new T.CylinderGeometry(0.1 * s, 0.14 * s, 0.8 * s, 6), new T.MeshStandardMaterial({ color: 0x5a3a20 }));
+    trunk.position.set(p.x, p.y + 0.4 * s, p.z);
+    this.world.add(trunk);
+    for (var i = 0; i < 3; i++) {
+      var cone = new T.Mesh(new T.ConeGeometry((0.9 - i * 0.22) * s, 1.1 * s, 10), new T.MeshStandardMaterial({ color: i === 2 ? 0xffffff : 0x2f6a4a, roughness: 0.9 }));
+      cone.position.set(p.x, p.y + (1 + i * 0.6) * s, p.z);
+      this.world.add(cone);
+    }
+  };
+
+  Renderer3D.prototype._buildAmbientParticles = function (kind) {
+    var T = this.THREE;
+    var n = 500, arr = new Float32Array(n * 3), rand = seeded(5);
+    for (var i = 0; i < n; i++) {
+      arr[i * 3] = (rand() - 0.5) * 50; arr[i * 3 + 1] = rand() * 20; arr[i * 3 + 2] = (rand() - 0.5) * 50;
+    }
+    var geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.BufferAttribute(arr, 3));
+    var pts = new T.Points(geo, new T.PointsMaterial({
+      color: kind === 'snow' ? 0xffffff : 0xff7a2a, size: kind === 'snow' ? 0.12 : 0.09,
+      transparent: true, opacity: 0.85, depthWrite: false
+    }));
+    pts.userData.kind = kind;
+    this.world.add(pts);
+    return pts;
+  };
+
+  Renderer3D.prototype._buildZone = function (level) {
+    var T = this.THREE, z = level.zone, c = z.center;
+    var g = new T.Group();
+    g.position.set(c.x, c.y, c.z);
+    var shellMat = new T.MeshBasicMaterial({ color: 0x5fd7ff, transparent: true, opacity: 0.1, depthWrite: false });
+    var shell = new T.Mesh(new T.SphereGeometry(z.radius, 40, 24), shellMat);
+    var wireMat = new T.MeshBasicMaterial({ color: 0x5fd7ff, wireframe: true, transparent: true, opacity: 0.18, depthWrite: false });
+    var wire = new T.Mesh(new T.SphereGeometry(z.radius, 16, 10), wireMat);
+    g.add(shell); g.add(wire);
+
+    var ringGroup = new T.Group();
+    var minRing = new T.Mesh(new T.TorusGeometry(level.target.minRadius, 0.025, 8, 64), new T.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.85 }));
+    var maxRing = new T.Mesh(new T.TorusGeometry(level.target.maxRadius, 0.035, 8, 64), new T.MeshBasicMaterial({ color: 0xff7aa8, transparent: true, opacity: 0.85 }));
+    ringGroup.add(minRing); ringGroup.add(maxRing);
+    g.add(ringGroup);
+    this.world.add(g);
+
+    var groundY = terrainHeight(c.x, c.z, this.theme.hills) + 0.12;
+    var ground = new T.Mesh(new T.RingGeometry(z.radius * 0.85, z.radius, 48), new T.MeshBasicMaterial({ color: 0x5fd7ff, transparent: true, opacity: 0.55, side: T.DoubleSide, depthWrite: false }));
+    ground.rotation.x = -Math.PI / 2; ground.position.set(c.x, groundY, c.z);
+    this.world.add(ground);
+    var beamH = Math.max(0.01, c.y - z.radius - groundY);
+    var beam = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, beamH, 6), new T.MeshBasicMaterial({ color: 0x5fd7ff, transparent: true, opacity: 0.35 }));
+    beam.position.set(c.x, groundY + beamH / 2, c.z);
+    this.world.add(beam);
+
+    this.zone = { group: g, shellMat: shellMat, wireMat: wireMat, ringGroup: ringGroup, groundMat: ground.material, beamMat: beam.material };
+  };
+
+  Renderer3D.prototype.resetBubble = function () {
+    var s = config.spawn;
+    this.bubbleMode = 'alive';
+    this.displayRadius = config.bubble.startRadius;
+    this.bubble.visible = true;
+    this.bubble.position.set(s.x, s.y, s.z);
+    this.bubble.scale.setScalar(this.displayRadius);
+    var u = this.bubbleUniforms;
+    u.uOpacity.value = 1; u.uGlow.value = 0; u.uStress.value = 0; u.uWobble.value = 0;
+  };
+
+  /* ---------------- effects ---------------- */
+
+  Renderer3D.prototype._particleBurst = function (pos, count, opts) {
+    var T = this.THREE;
+    var positions = new Float32Array(count * 3), colors = new Float32Array(count * 3), vel = [];
+    var col = new T.Color();
+    for (var i = 0; i < count; i++) {
+      var u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u);
+      var dir = { x: s * Math.cos(th), y: u, z: s * Math.sin(th) };
+      var r0 = opts.radius || 0;
+      positions[i * 3] = pos.x + dir.x * r0; positions[i * 3 + 1] = pos.y + dir.y * r0; positions[i * 3 + 2] = pos.z + dir.z * r0;
+      var sp = opts.speed * (0.5 + Math.random());
+      vel.push({ x: dir.x * sp, y: dir.y * sp + (opts.up || 0), z: dir.z * sp });
+      col.setHSL(opts.hue !== undefined ? opts.hue + Math.random() * 0.1 : Math.random(), 0.9, 0.7);
+      colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
+    }
+    var geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new T.BufferAttribute(colors, 3));
+    var mat = new T.PointsMaterial({ size: opts.size || 0.1, vertexColors: true, transparent: true, opacity: 1, depthWrite: false });
+    var pts = new T.Points(geo, mat);
+    this.scene.add(pts);
+    var life = 0, scene = this.scene;
+    this.effects.push({
+      update: function (dt) {
+        life += dt;
+        var p = geo.attributes.position.array;
+        for (var i = 0; i < vel.length; i++) {
+          vel[i].y -= (opts.gravity || 0) * dt;
+          var drag = Math.exp(-(opts.drag || 0.5) * dt);
+          vel[i].x *= drag; vel[i].y *= drag; vel[i].z *= drag;
+          p[i * 3] += vel[i].x * dt; p[i * 3 + 1] += vel[i].y * dt; p[i * 3 + 2] += vel[i].z * dt;
+        }
+        geo.attributes.position.needsUpdate = true;
+        mat.opacity = Math.max(0, 1 - life / opts.life);
+        return life < opts.life;
+      },
+      dispose: function () { scene.remove(pts); geo.dispose(); mat.dispose(); }
+    });
+  };
+
+  Renderer3D.prototype._shockwave = function (pos, radius) {
+    var T = this.THREE;
+    var mesh = new T.Mesh(new T.SphereGeometry(1, 20, 14), new T.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.6, depthWrite: false }));
+    mesh.position.set(pos.x, pos.y, pos.z);
+    mesh.scale.setScalar(radius);
+    this.scene.add(mesh);
+    var life = 0, scene = this.scene;
+    this.effects.push({
+      update: function (dt) { life += dt; mesh.scale.setScalar(radius * (1 + life * 5)); mesh.material.opacity = Math.max(0, 0.6 - life * 2); return life < 0.3; },
+      dispose: function () { scene.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
+    });
+  };
+
+  Renderer3D.prototype.clearEffects = function () {
+    this.effects.forEach(function (e) { e.dispose(); });
+    this.effects = [];
+  };
+
+  /** React to game events (burst / escape / pass / detach) */
+  Renderer3D.prototype.onEvent = function (evt, payload) {
+    var p = payload && payload.pos;
+    if (evt === 'burst') {
+      this.bubbleMode = 'burst';
+      this.bubble.visible = false;
+      this._particleBurst(p, 220, { radius: payload.radius, speed: 2.4, gravity: 4, life: 1.1, size: 0.08 });
+      this._shockwave(p, payload.radius);
+    } else if (evt === 'escape') {
+      this.bubbleMode = 'escape';
+      var v = payload.vel || { x: 0, y: 1, z: 0 };
+      var l = Math.max(0.5, Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z));
+      this.escapeVel = { x: v.x / l * 4, y: v.y / l * 4 + 2, z: v.z / l * 4 };
+      this.escapeTime = 0;
+    } else if (evt === 'pass') {
+      this.bubbleMode = 'pass';
+      var c = this.level.zone.center;
+      this._particleBurst(c, 260, { speed: 4, up: 3, gravity: 5, life: 2.2, size: 0.13, drag: 0.8 });
+    } else if (evt === 'detach') {
+      this._particleBurst(p, 30, { speed: 0.8, gravity: 1, life: 0.6, size: 0.05, hue: 0.55 });
+    }
+  };
+
+  /**
+   * Per-frame update.
+   * @param {object} snap GameEngine snapshot (may be null before the first level)
+   * @param {number} dt
+   */
+  Renderer3D.prototype.update = function (snap, dt) {
+    this.time += dt;
+    var u = this.bubbleUniforms;
+    u.uTime.value = this.time;
+
+    if (snap && this.level) {
+      var b = snap.bubble;
+      if (this.bubbleMode === 'alive') {
+        this.displayRadius += (b.radius - this.displayRadius) * U.smoothing(dt, 0.05);
+        this.bubble.position.set(b.pos.x, b.pos.y, b.pos.z);
+        this.bubble.scale.setScalar(this.displayRadius);
+        u.uStress.value = b.stress;
+        u.uWobble.value = snap.audio ? snap.audio.volume : 0;
+      } else if (this.bubbleMode === 'escape') {
+        this.escapeTime += dt;
+        var bp = this.bubble.position;
+        bp.x += this.escapeVel.x * dt; bp.y += this.escapeVel.y * dt; bp.z += this.escapeVel.z * dt;
+        this.escapeVel.y += 1.5 * dt;
+        u.uOpacity.value = Math.max(0, 1 - this.escapeTime / 1.6);
+        if (u.uOpacity.value <= 0) this.bubble.visible = false;
+      } else if (this.bubbleMode === 'pass') {
+        u.uGlow.value = Math.min(1, u.uGlow.value + dt * 1.5);
+        this.bubble.position.y += dt * 0.6;
+      }
+
+      var e = snap.eval || {};
+      var zc = (e.inZone && e.sizeOk) ? 0x4dff88 : e.inZone ? 0xffd34d : 0x5fd7ff;
+      var pulse = 0.5 + 0.5 * Math.sin(this.time * ((e.inZone && e.sizeOk) ? 8 : 2.5));
+      this.zone.shellMat.color.set(zc); this.zone.wireMat.color.set(zc);
+      this.zone.groundMat.color.set(zc); this.zone.beamMat.color.set(zc);
+      this.zone.shellMat.opacity = 0.07 + 0.08 * pulse + (e.holdProgress || 0) * 0.12;
+      this.zone.ringGroup.lookAt(this.camera.position);
+
+      var visible = this.bubble.visible;
+      var bpos = this.bubble.position;
+      var gy = terrainHeight(bpos.x, bpos.z, this.theme.hills) + 0.07;
+      this.shadow.visible = visible;
+      this.shadow.position.set(bpos.x, gy, bpos.z);
+      this.shadow.scale.setScalar(Math.max(0.05, this.displayRadius * (1 - Math.min(0.6, (bpos.y - gy) * 0.06))));
+      this.shadow.material.opacity = 0.22 * Math.max(0.2, 1 - (bpos.y - gy) * 0.08) * u.uOpacity.value;
+      var lp = this.heightLine.geometry.attributes.position;
+      lp.setXYZ(0, bpos.x, gy, bpos.z); lp.setXYZ(1, bpos.x, bpos.y - this.displayRadius, bpos.z);
+      lp.needsUpdate = true;
+      this.heightLine.visible = visible && this.bubbleMode === 'alive';
+    }
+
+    if (this.particles) {
+      var arr = this.particles.geometry.attributes.position.array;
+      var snow = this.particles.userData.kind === 'snow';
+      for (var i = 0; i < arr.length; i += 3) {
+        arr[i + 1] += (snow ? -0.8 : 1.1) * dt;
+        arr[i] += Math.sin(this.time + i) * 0.2 * dt;
+        if (snow && arr[i + 1] < 0) arr[i + 1] = 20;
+        if (!snow && arr[i + 1] > 20) arr[i + 1] = 0;
+      }
+      this.particles.geometry.attributes.position.needsUpdate = true;
+    }
+
+    this.wand.lookAt(this.camera.position.x, this.wand.position.y, this.camera.position.z);
+
+    for (var k = this.effects.length - 1; k >= 0; k--) {
+      if (!this.effects[k].update(dt)) { this.effects[k].dispose(); this.effects.splice(k, 1); }
+    }
+    this.renderer.render(this.scene, this.camera);
+  };
+
+  Renderer3D.prototype.resize = function () {
+    var w = this.container.clientWidth || 1, h = this.container.clientHeight || 1;
+    this.renderer.setSize(w, h, false);
+    this.camera.aspect = w / h;
+    // keep the arena in view on narrow (portrait) screens
+    this.camera.fov = w / h < 0.8 ? 68 : 50;
+    this.camera.updateProjectionMatrix();
+  };
+
+  return { Renderer3D: Renderer3D, THEMES: THEMES, terrainHeight: terrainHeight };
+});
+
+</script>
+  <script>
+/* js/app.js */
+/**
+ * RoarBubbles - browser application: wires mic → engine → renderer / sound / HUD.
+ */
+(function (root) {
+  'use strict';
+  var RB = root.RB;
+  var doc = root.document;
+  if (!doc) return;
+
+  var t = RB.i18n.t;
+  var $ = function (id) { return doc.getElementById(id); };
+
+  var storage = RB.utils.createStorage();
+  var KEY = RB.config.storageKey;
+  var engine = new RB.gameEngine.GameEngine({ storage: storage });
+  var sfx = new RB.sfx.Sfx({ storage: storage });
+  var mic = new RB.micInput.MicInput();
+  var renderer = null;
+
+  var app = {
+    phase: 'brief', // brief | countdown | playing | result
+    countdown: 0,
+    lastCount: -1,
+    hintKey: '',
+    hintTimer: 0,
+    resultTimer: null,
+    lastResult: null
+  };
+
+  /* ---------------- settings ---------------- */
+  var settings = storage.get(KEY + '.settings', null) || {};
+  RB.i18n.setLang(settings.lang || RB.i18n.detect());
+  engine.analyzer.setSensitivity(settings.sensitivity || 1);
+  function saveSettings() { storage.set(KEY + '.settings', settings); }
+
+  /* ---------------- i18n ---------------- */
+  function applyI18n() {
+    doc.documentElement.lang = RB.i18n.getLang() === 'zh' ? 'zh-CN' : 'en';
+    doc.title = t('title') + ' · RoarBubbles';
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-i18n]'), function (el) { el.textContent = t(el.getAttribute('data-i18n')); });
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-i18n-title]'), function (el) {
+      var s = t(el.getAttribute('data-i18n-title'));
+      el.title = s; el.setAttribute('aria-label', s);
+    });
+    $('guide-body').innerHTML = t('guide_html');
+    Array.prototype.forEach.call(doc.querySelectorAll('#lang-switch [data-lang]'), function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-lang') === RB.i18n.getLang()));
+    });
+    updateSoundButton();
+    renderLevelHeader();
+    if (app.phase === 'brief') renderBrief();
+    if (app.phase === 'result' && app.lastResult) showResult(app.lastResult);
+    if (app.hintKey) $('hint').textContent = t(app.hintKey);
+    renderLevelGrid();
+  }
+
+  function levelName(level) { return level.name[RB.i18n.getLang()] || level.name.zh; }
+
+  function renderLevelHeader() {
+    if (!engine.level) return;
+    $('level-label').textContent = t('level', { n: engine.level.id }) + ' · ' + levelName(engine.level);
+  }
+
+  /* ---------------- modals / overlays ---------------- */
+  function show(id) { $(id).hidden = false; }
+  function hide(id) { $(id).hidden = true; }
+  function openModal(id) { sfx.play('click'); show(id); }
+
+  function difficultyStars(d) {
+    var n = Math.max(1, Math.round(1 + d * 4));
+    return '★★★★★'.slice(0, n) + '☆☆☆☆☆'.slice(0, 5 - n);
+  }
+
+  function renderBrief() {
+    var L = engine.level;
+    if (!L) return;
+    $('brief-title').textContent = t('level', { n: L.id }) + ' · ' + levelName(L);
+    $('brief-difficulty').textContent = t('brief_difficulty') + ' ' + difficultyStars(L.difficulty);
+    $('brief-goals').innerHTML =
+      '<li>📏 ' + t('brief_size', { min: L.target.minRadius.toFixed(2), max: L.target.maxRadius.toFixed(2) }) + '</li>' +
+      '<li>🎯 ' + t('brief_zone') + '</li>' +
+      '<li>⏱ ' + t('brief_hold', { hold: L.holdTime }) + '</li>' +
+      '<li>⌛ ' + t('brief_time', { time: L.timeLimit }) + '</li>';
+    $('brief-error').textContent = '';
+    $('brief-countdown').textContent = '';
+    $('btn-start').disabled = false;
+  }
+
+  function renderLevelGrid() {
+    var grid = $('level-grid');
+    grid.innerHTML = '';
+    engine.levels.forEach(function (L, i) {
+      var b = doc.createElement('button');
+      var unlocked = engine.isUnlocked(i);
+      var stars = engine.progress.stars[String(L.id)] || 0;
+      b.className = 'level-btn theme-' + L.theme + (i === engine.levelIndex ? ' current' : '');
+      b.disabled = !unlocked;
+      b.innerHTML = '<span class="num">' + L.id + '</span><span class="nm">' + (unlocked ? levelName(L) : '🔒 ' + t('locked')) +
+        '</span><span class="st">' + '★★★'.slice(0, stars) + '<i>' + '☆☆☆'.slice(0, 3 - stars) + '</i></span>';
+      b.addEventListener('click', function () { hide('modal-levels'); loadLevel(i); });
+      grid.appendChild(b);
+    });
+  }
+
+  function loadLevel(i) {
+    clearTimeout(app.resultTimer);
+    engine.loadLevel(i);
+    if (renderer) renderer.setLevel(engine.level);
+    app.phase = 'brief';
+    hide('overlay-result');
+    renderLevelHeader();
+    renderBrief();
+    renderLevelGrid();
+    show('overlay-brief');
+    setHint('tip_start');
+  }
+
+  function startLevel() {
+    sfx.ensure();
+    $('btn-start').disabled = true;
+    $('brief-error').textContent = '';
+    mic.start().then(function () {
+      app.phase = 'countdown';
+      app.countdown = 2.4;
+      app.lastCount = -1;
+      $('brief-countdown').textContent = t('calibrating');
+    }).catch(function (err) {
+      var key = RB.micInput.MicInput.errorKey(err);
+      $('brief-error').textContent = t(key, { msg: (err && (err.message || err.name)) || '?' });
+      $('btn-start').disabled = false;
+    });
+  }
+
+  function showResult(res) {
+    var L = engine.level;
+    app.lastResult = res;
+    app.phase = 'result';
+    var box = $('overlay-result');
+    box.classList.toggle('win', res.passed);
+    box.classList.toggle('lose', !res.passed);
+    $('result-title').textContent = res.passed ? t('passed') : t('failed');
+    $('result-stars').textContent = res.passed ? '★★★'.slice(0, res.stars) + '☆☆☆'.slice(0, 3 - res.stars) : '';
+    var msg = res.passed ? t('time_used', { t: res.elapsed.toFixed(1) }) : t('fail_' + res.reason);
+    if (res.passed && !engine.hasNext()) msg += ' 🎉 ' + t('all_cleared');
+    $('result-msg').textContent = msg;
+    $('btn-next').hidden = !(res.passed && engine.hasNext());
+    $('result-title').setAttribute('data-level', L ? L.id : '');
+    show('overlay-result');
+  }
+
+  /* ---------------- HUD ---------------- */
+  function setMeter(id, v) { $(id).style.width = (RB.utils.clamp01(v) * 100).toFixed(1) + '%'; }
+
+  function setHint(key) {
+    if (key === app.hintKey) return;
+    app.hintKey = key;
+    app.hintTimer = 0;
+    $('hint').textContent = t(key);
+  }
+
+  function updateHud(snap, dt) {
+    var a = snap.audio, b = snap.bubble, e = snap.eval || {}, L = engine.level;
+    setMeter('m-volume', a.volume);
+    setMeter('m-continuity', a.continuity);
+    setMeter('m-rhythm', a.rhythm);
+    setMeter('m-stress', b.stress);
+    $('m-bpm').textContent = a.bpm ? Math.round(a.bpm) + ' bpm' : '';
+    if (!L) return;
+
+    var scaleMax = L.physics.burstRadius * (1 + RB.config.bubble.rhythmBurstBonus);
+    var pct = function (r) { return (RB.utils.clamp01(r / scaleMax) * 100).toFixed(1) + '%'; };
+    $('size-band').style.left = pct(L.target.minRadius);
+    $('size-band').style.width = ((L.target.maxRadius - L.target.minRadius) / scaleMax * 100).toFixed(1) + '%';
+    $('size-burst').style.left = pct(b.burstRadius || L.physics.burstRadius);
+    $('size-marker').style.left = pct(b.radius);
+    $('size-value').textContent = b.radius.toFixed(2) + ' / ' + L.target.minRadius.toFixed(2) + '–' + L.target.maxRadius.toFixed(2);
+    $('chk-size').classList.toggle('ok', !!e.sizeOk);
+    $('chk-zone').classList.toggle('ok', !!e.inZone);
+    setMeter('hold-bar', e.holdProgress || 0);
+    $('hold-value').textContent = (e.hold || 0).toFixed(1) + ' / ' + L.holdTime + t('seconds');
+    var rem = e.remaining !== undefined ? e.remaining : L.timeLimit;
+    $('time-value').textContent = Math.ceil(rem) + t('seconds');
+    $('time-value').classList.toggle('warn', rem < 10);
+
+    app.hintTimer += dt;
+    var key = RB.hints.pickHint(snap, L);
+    if (key !== app.hintKey && app.hintTimer > 0.7) setHint(key);
+  }
+
+  /* ---------------- engine events ---------------- */
+  engine.on('grow', function (p) { sfx.play('grow', p); });
+  engine.on('shrink', function (p) { sfx.play('shrink', p); });
+  engine.on('detach', function (p) { sfx.play('detach'); if (renderer) renderer.onEvent('detach', p); });
+  engine.on('enterZone', function () { sfx.play('enterZone'); });
+  engine.on('leaveZone', function () { sfx.play('leaveZone'); });
+  engine.on('burst', function (p) { sfx.play('burst'); if (renderer) renderer.onEvent('burst', p); });
+  engine.on('escape', function (p) { sfx.play('escape'); if (renderer) renderer.onEvent('escape', p); });
+  engine.on('pass', function (res) {
+    sfx.play('pass');
+    if (renderer) renderer.onEvent('pass', {});
+    app.resultTimer = setTimeout(function () { showResult(res); renderLevelGrid(); }, 1400);
+  });
+  engine.on('fail', function (res) {
+    app.resultTimer = setTimeout(function () { sfx.play('fail'); showResult(res); }, res.reason === 'escaped' ? 1500 : 1000);
+  });
+
+  /* ---------------- main loop ---------------- */
+  var last = 0;
+  function frame(now) {
+    // real elapsed time (capped so a background tab does not jump); slow devices still run in real time
+    var dt = last ? Math.min(0.1, Math.max(0, (now - last) / 1000)) : 1 / 60;
+    last = now;
+    var samples = mic.read();
+    // our own sound effects reach the microphone through the speakers: never treat them as the player
+    var echo = sfx.isAudible();
+
+    if (app.phase === 'countdown') {
+      // calibrate on room noise only (skip the countdown beeps)
+      if (samples && !echo) engine.analyzer.observeAmbient(RB.audioAnalyzer.computeRms(samples), dt);
+      app.countdown -= dt;
+      var n = Math.ceil(app.countdown / 0.8);
+      if (n !== app.lastCount && n > 0) {
+        app.lastCount = n;
+        $('brief-countdown').textContent = t('calibrating') + '  ' + n;
+        sfx.play('countdown', { final: false });
+      }
+      if (app.countdown <= 0) {
+        sfx.play('countdown', { final: true });
+        hide('overlay-brief');
+        flash(t('go'));
+        engine.start();
+        app.phase = 'playing';
+      }
+    } else if (app.phase === 'playing' && samples) {
+      engine.analyzer.setEchoGuard(echo ? 1 : 0, dt);
+      engine.update(samples, dt);
+    }
+
+    var snap = engine.snapshot();
+    if (renderer) renderer.update(snap, dt);
+    updateHud(snap, dt);
+    root.requestAnimationFrame(frame);
+  }
+
+  function flash(text) {
+    var el = $('flash');
+    el.textContent = text;
+    el.classList.remove('show');
+    void el.offsetWidth; // restart CSS animation
+    el.classList.add('show');
+  }
+
+  /* ---------------- controls ---------------- */
+  function updateSoundButton() {
+    var b = $('btn-sound');
+    b.textContent = sfx.enabled ? '🔊' : '🔇';
+    b.title = sfx.enabled ? t('sound_on') : t('sound_off');
+    b.setAttribute('aria-label', b.title);
+    b.setAttribute('aria-pressed', String(sfx.enabled));
+  }
+
+  function bind() {
+    $('btn-guide').addEventListener('click', function () { openModal('modal-guide'); });
+    $('btn-levels').addEventListener('click', function () { renderLevelGrid(); openModal('modal-levels'); });
+    $('btn-settings').addEventListener('click', function () { openModal('modal-settings'); });
+    $('btn-sound').addEventListener('click', function () { sfx.toggle(); updateSoundButton(); sfx.play('click'); });
+    Array.prototype.forEach.call(doc.querySelectorAll('#lang-switch [data-lang]'), function (b) {
+      b.addEventListener('click', function () {
+        var lang = b.getAttribute('data-lang');
+        if (lang === RB.i18n.getLang()) return;
+        settings.lang = RB.i18n.setLang(lang);
+        saveSettings(); applyI18n(); sfx.play('click');
+      });
+    });
+    $('btn-view').addEventListener('click', function () { if (renderer) renderer.orbit.reset(); sfx.play('click'); });
+    $('btn-start').addEventListener('click', startLevel);
+    $('btn-retry').addEventListener('click', function () { loadLevel(engine.levelIndex); });
+    $('btn-next').addEventListener('click', function () { loadLevel(engine.levelIndex + 1); });
+    $('btn-menu').addEventListener('click', function () { renderLevelGrid(); show('modal-levels'); });
+    Array.prototype.forEach.call(doc.querySelectorAll('[data-close]'), function (el) {
+      el.addEventListener('click', function () { hide(el.getAttribute('data-close')); });
+    });
+    Array.prototype.forEach.call(doc.querySelectorAll('.modal'), function (m) {
+      m.addEventListener('click', function (e) { if (e.target === m) m.hidden = true; });
+    });
+    doc.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') Array.prototype.forEach.call(doc.querySelectorAll('.modal'), function (m) { m.hidden = true; });
+    });
+
+    var sens = $('in-sensitivity');
+    sens.value = settings.sensitivity || 1;
+    $('out-sensitivity').textContent = Number(sens.value).toFixed(1) + '×';
+    sens.addEventListener('input', function () {
+      settings.sensitivity = Number(sens.value);
+      engine.analyzer.setSensitivity(settings.sensitivity);
+      $('out-sensitivity').textContent = settings.sensitivity.toFixed(1) + '×';
+      saveSettings();
+    });
+    var vol = $('in-volume');
+    vol.value = sfx.volume;
+    vol.addEventListener('input', function () { sfx.setVolume(vol.value); });
+    vol.addEventListener('change', function () { sfx.play('pass'); });
+    $('btn-reset-progress').addEventListener('click', function () {
+      engine.resetProgress(); renderLevelGrid(); $('reset-msg').textContent = t('reset_done');
+    });
+
+    doc.addEventListener('pointerdown', function () { sfx.ensure(); mic.resume(); }, { once: true });
+    root.addEventListener('resize', function () { if (renderer) renderer.resize(); });
+    doc.addEventListener('visibilitychange', function () { if (!doc.hidden) { mic.resume(); last = 0; } });
+  }
+
+  function boot() {
+    try {
+      renderer = new RB.renderer3d.Renderer3D($('stage'), root.THREE);
+    } catch (e) {
+      renderer = null;
+      $('fatal').textContent = t('webgl_error') + ' (' + e.message + ')';
+      $('fatal').hidden = false;
+    }
+    bind();
+    applyI18n();
+    loadLevel(Math.min(engine.progress.unlocked, engine.levels.length) - 1);
+    if (!storage.get(KEY + '.guideSeen', false)) { show('modal-guide'); storage.set(KEY + '.guideSeen', true); }
+    root.requestAnimationFrame(frame);
+    root.RoarBubbles = { engine: engine, sfx: sfx, mic: mic, renderer: renderer, loadLevel: loadLevel, RB: RB };
+  }
+
+  if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})(typeof self !== 'undefined' ? self : this);
+
+</script>
+</body>
+</html>

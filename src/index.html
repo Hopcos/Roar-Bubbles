@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#5aa7e0">
+  <meta name="description" content="RoarBubbles - 用声音吹出 3D 泡泡的闯关游戏 / Blow 3D bubbles with your voice">
+  <title>吼吼泡泡 · RoarBubbles</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='30' cy='30' r='24' fill='%23bfe9ff' stroke='%23ff6fa8' stroke-width='4'/%3E%3Ccircle cx='22' cy='22' r='6' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="stage" aria-label="3D scene"></div>
+
+  <header id="topbar">
+    <div class="brand"><span class="logo">🫧</span><span class="brand-name" data-i18n="title">吼吼泡泡</span></div>
+    <div class="level-label-wrap"><span id="level-label" class="level-label"></span></div>
+    <nav class="actions">
+      <button id="btn-guide" class="icon-btn" data-i18n-title="guide">📖</button>
+      <button id="btn-levels" class="icon-btn" data-i18n-title="levels">🗺️</button>
+      <button id="btn-settings" class="icon-btn" data-i18n-title="settings">⚙️</button>
+      <button id="btn-sound" class="icon-btn">🔊</button>
+      <button id="btn-view" class="icon-btn" data-i18n-title="reset_view">⟲</button>
+    </nav>
+  </header>
+
+  <!-- language switch: on the outermost layer, above every overlay / modal -->
+  <div id="lang-switch" class="lang-switch" role="group" aria-label="语言 / Language">
+    <button type="button" data-lang="zh" lang="zh-CN" aria-pressed="true">中文</button>
+    <button type="button" data-lang="en" lang="en" aria-pressed="false">EN</button>
+  </div>
+
+  <section id="hud-left" class="panel hud">
+    <div class="meter"><label data-i18n="meter_volume">音量</label><div class="bar"><i id="m-volume" class="c-volume"></i></div></div>
+    <div class="meter"><label data-i18n="meter_continuity">连续</label><div class="bar"><i id="m-continuity" class="c-continuity"></i></div></div>
+    <div class="meter"><label data-i18n="meter_rhythm">节奏</label><div class="bar"><i id="m-rhythm" class="c-rhythm"></i></div><span id="m-bpm" class="bpm"></span></div>
+    <div class="meter"><label data-i18n="meter_stress">压力</label><div class="bar"><i id="m-stress" class="c-stress"></i></div></div>
+  </section>
+
+  <section id="hud-right" class="panel hud">
+    <div class="goal-head"><span data-i18n="goal">过关目标</span><span id="time-value" class="time">--</span></div>
+    <div class="goal-row">
+      <span id="chk-size" class="chk" data-i18n="goal_size">泡泡大小</span>
+      <span id="size-value" class="val"></span>
+    </div>
+    <div class="size-track" aria-hidden="true">
+      <div id="size-band" class="band"></div>
+      <div id="size-burst" class="burst"></div>
+      <div id="size-marker" class="marker"></div>
+    </div>
+    <div class="goal-row"><span id="chk-zone" class="chk" data-i18n="goal_zone">目标区域</span></div>
+    <div class="goal-row"><span data-i18n="goal_hold">保持</span><span id="hold-value" class="val"></span></div>
+    <div class="bar hold"><i id="hold-bar"></i></div>
+  </section>
+
+  <div id="hint" class="hint" role="status" aria-live="polite"></div>
+  <div id="flash" class="flash" aria-hidden="true"></div>
+  <div id="fatal" class="fatal" hidden></div>
+
+  <!-- level briefing -->
+  <div id="overlay-brief" class="overlay">
+    <div class="card">
+      <h2 id="brief-title"></h2>
+      <div id="brief-difficulty" class="difficulty"></div>
+      <ul id="brief-goals" class="goals"></ul>
+      <button id="btn-start" class="primary" data-i18n="start">开始吹泡泡</button>
+      <div id="brief-countdown" class="countdown"></div>
+      <div id="brief-error" class="error" role="alert"></div>
+    </div>
+  </div>
+
+  <!-- result -->
+  <div id="overlay-result" class="overlay" hidden>
+    <div class="card">
+      <h2 id="result-title"></h2>
+      <div id="result-stars" class="stars"></div>
+      <p id="result-msg"></p>
+      <div class="row">
+        <button id="btn-retry" data-i18n="retry">再试一次</button>
+        <button id="btn-menu" data-i18n="menu">选择关卡</button>
+        <button id="btn-next" class="primary" data-i18n="next">下一关</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- guide -->
+  <div id="modal-guide" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <div class="card wide">
+      <button class="close" data-close="modal-guide" data-i18n-title="close">✕</button>
+      <h2 id="guide-title" data-i18n="guide">操作指引</h2>
+      <div id="guide-body" class="guide"></div>
+    </div>
+  </div>
+
+  <!-- level select -->
+  <div id="modal-levels" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="levels-title">
+    <div class="card wide">
+      <button class="close" data-close="modal-levels" data-i18n-title="close">✕</button>
+      <h2 id="levels-title" data-i18n="levels">关卡</h2>
+      <div id="level-grid" class="level-grid"></div>
+    </div>
+  </div>
+
+  <!-- settings -->
+  <div id="modal-settings" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="card">
+      <button class="close" data-close="modal-settings" data-i18n-title="close">✕</button>
+      <h2 id="settings-title" data-i18n="settings">设置</h2>
+      <label class="setting"><span data-i18n="sensitivity">麦克风灵敏度</span>
+        <input id="in-sensitivity" type="range" min="0.5" max="3" step="0.1"><output id="out-sensitivity"></output></label>
+      <label class="setting"><span data-i18n="sfx_volume">音效音量</span>
+        <input id="in-volume" type="range" min="0" max="1" step="0.05"></label>
+      <button id="btn-reset-progress" data-i18n="reset_progress">重置关卡进度</button>
+      <div id="reset-msg" class="muted"></div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/audioAnalyzer.js"></script>
+  <script src="js/bubblePhysics.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/levelEvaluator.js"></script>
+  <script src="js/gameEngine.js"></script>
+  <script src="js/hints.js"></script>
+  <script src="js/sfx.js"></script>
+  <script src="js/micInput.js"></script>
+  <script src="js/orbitCamera.js"></script>
+  <script src="js/renderer3d.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

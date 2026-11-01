@@ -1,0 +1,31 @@
+{
+  "name": "roarbubbles",
+  "version": "1.0.0",
+  "description": "RoarBubbles - a 3D voice-controlled bubble blowing game (single-page HTML). 吼吼泡泡：用声音吹泡泡的 3D 闯关游戏",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/index.html",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "start": "npm run build && node scripts/serve.js 5173 dist",
+    "dev": "node scripts/serve.js 5173 src",
+    "test": "node --test \"test/unit/*.test.js\" \"test/closed-loop/*.test.js\"",
+    "test:unit": "node --test \"test/unit/*.test.js\"",
+    "test:loop": "node --test \"test/closed-loop/*.test.js\"",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" \"test/unit/*.test.js\" \"test/closed-loop/*.test.js\"",
+    "test:e2e": "node --test \"test/e2e/*.test.js\"",
+    "test:all": "npm test && npm run test:e2e"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "game",
+    "webaudio",
+    "microphone",
+    "threejs",
+    "3d",
+    "bubbles",
+    "html5"
+  ]
+}
